@@ -71,7 +71,7 @@ const UI = (() => {
       const cms = [m]; assigned.add(m.name);
       for (const m2 of livingM) {
         if (assigned.has(m2.name)) continue;
-        if (m2.meleePCs.slice().sort().join('|') === myKey) { cms.push(m2); assigned.add(m2.name); }
+        if (myKey !== '' && m2.meleePCs.slice().sort().join('|') === myKey) { cms.push(m2); assigned.add(m2.name); }
       }
       const pcMap = new Map();
       for (const mc of cms) {
