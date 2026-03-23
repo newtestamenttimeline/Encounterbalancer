@@ -237,3 +237,34 @@ const ENGINE = (() => {
         if (p.down && !p.dead) {
           const ds = roll(20);
           if (ds === 20) {
+p.chp = 1; p.down = false; p.deathSucc = 0; p.deathFail = 0;
+            emit({ type:'recovery', name:p.name });
+          } else if (ds >= 10) {
+            p.deathSucc++;
+            if (p.deathSucc >= 3) { p.down = false; p.chp = 1; emit({ type:'stabilized', name:p.name }); }
+          } else {
+            p.deathFail++;
+            if (p.deathFail >= 3) { p.dead = true; emit({ type:'death', name:p.name }); }
+          }
+        }
+      }
+
+      if (!livingM().length) break;
+
+      // Party turns
+      for (const pc of party) {
+        if (!livingM().length) break;
+        pcAct(pc, livingM, party, emit);
+      }
+
+      emit({ type:'round_end', round });
+    }
+
+    const monstersWon = livingM().length > 0;
+    emit({ type:'combat_end', monstersWon, rounds:round, deaths:party.filter(p=>p.dead).length });
+    return { monstersWon, rounds:round, deaths:party.filter(p=>p.dead).length, events };
+  }
+
+  return { roll, rollN, simulate, buildPC };
+
+})();
