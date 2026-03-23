@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -44,7 +45,7 @@ button:disabled{opacity:0.35;cursor:default;}
 .combatant{display:flex;flex-direction:column;align-items:center;gap:2px;}
 .combatant-em{font-size:20px;line-height:1;}
 .hp-bar-wrap{width:32px;height:4px;background:var(--color-border-tertiary);border-radius:2px;overflow:hidden;}
-.hp-bar{height:4px;border-radius:2px;transition:width 0.2s;}
+.hp-bar{height:4px;border-radius:2px;}
 .ticker-box{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:16px;margin-bottom:8px;min-height:56px;display:flex;align-items:center;justify-content:center;}
 .ticker-line{font-size:14px;font-weight:500;text-align:center;transition:opacity 0.2s;opacity:1;}
 .ticker-line.fade{opacity:0;}
@@ -90,45 +91,37 @@ button:disabled{opacity:0.35;cursor:default;}
 <div id="output"></div>
 
 <script>
-// ============================================================
-// DATA
-// ============================================================
-const DATA = (() => {
-  const CLASS_EMOJI = {fighter:'⚔️',barbarian:'🪓',paladin:'🛡️',rogue:'🗡️',ranger:'🏹',cleric:'✨',druid:'🌿',wizard:'🔮',sorcerer:'💫',bard:'🎵',warlock:'👁️'};
-  const MONSTER_EMOJI = {boss:'💀',minion:'👺'};
-  const ATTACK_EMOJI  = {melee:'⚔️',ranged:'🏹',magic:'✨'};
-  const CLASS_ATTACK_TYPE = {fighter:'melee',barbarian:'melee',paladin:'melee',rogue:'melee',ranger:'ranged',cleric:'magic',druid:'magic',wizard:'magic',sorcerer:'magic',bard:'magic',warlock:'magic'};
-
-  const CLASSES = [
-    {name:'Fighter',  zone:'melee',hpDie:10,ac:16,atkMod:3,dmgDie:8, dmgBonus:3, cls:'fighter'},
-    {name:'Barbarian',zone:'melee',hpDie:12,ac:15,atkMod:4,dmgDie:12,dmgBonus:4, cls:'barbarian'},
-    {name:'Paladin',  zone:'melee',hpDie:10,ac:17,atkMod:3,dmgDie:8, dmgBonus:3, cls:'paladin'},
-    {name:'Rogue',    zone:'melee',hpDie:8, ac:14,atkMod:4,dmgDie:6, dmgBonus:3, cls:'rogue'},
-    {name:'Ranger',   zone:'back', hpDie:10,ac:15,atkMod:3,dmgDie:8, dmgBonus:3, cls:'ranger'},
-    {name:'Cleric',   zone:'back', hpDie:8, ac:16,atkMod:3,dmgDie:8, dmgBonus:2, cls:'cleric'},
-    {name:'Druid',    zone:'back', hpDie:8, ac:13,atkMod:3,dmgDie:8, dmgBonus:2, cls:'druid'},
-    {name:'Wizard',   zone:'back', hpDie:6, ac:12,atkMod:4,dmgDie:10,dmgBonus:3, cls:'wizard'},
-    {name:'Sorcerer', zone:'back', hpDie:6, ac:12,atkMod:4,dmgDie:10,dmgBonus:3, cls:'sorcerer'},
-    {name:'Bard',     zone:'back', hpDie:8, ac:13,atkMod:3,dmgDie:8, dmgBonus:2, cls:'bard'},
-    {name:'Warlock',  zone:'back', hpDie:8, ac:13,atkMod:4,dmgDie:10,dmgBonus:4, cls:'warlock'},
+const DATA=(()=>{
+  const CLASS_EMOJI={fighter:'⚔️',barbarian:'🪓',paladin:'🛡️',rogue:'🗡️',ranger:'🏹',cleric:'✨',druid:'🌿',wizard:'🔮',sorcerer:'💫',bard:'🎵',warlock:'👁️'};
+  const MONSTER_EMOJI={boss:'💀',minion:'👺'};
+  const ATTACK_EMOJI={melee:'⚔️',ranged:'🏹',magic:'✨'};
+  const CLASS_ATTACK_TYPE={fighter:'melee',barbarian:'melee',paladin:'melee',rogue:'melee',ranger:'ranged',cleric:'magic',druid:'magic',wizard:'magic',sorcerer:'magic',bard:'magic',warlock:'magic'};
+  const CLASSES=[
+    {name:'Fighter',  zone:'melee',hpDie:10,ac:16,atkMod:3,dmgDie:8, dmgBonus:3,cls:'fighter'},
+    {name:'Barbarian',zone:'melee',hpDie:12,ac:15,atkMod:4,dmgDie:12,dmgBonus:4,cls:'barbarian'},
+    {name:'Paladin',  zone:'melee',hpDie:10,ac:17,atkMod:3,dmgDie:8, dmgBonus:3,cls:'paladin'},
+    {name:'Rogue',    zone:'melee',hpDie:8, ac:14,atkMod:4,dmgDie:6, dmgBonus:3,cls:'rogue'},
+    {name:'Ranger',   zone:'back', hpDie:10,ac:15,atkMod:3,dmgDie:8, dmgBonus:3,cls:'ranger'},
+    {name:'Cleric',   zone:'back', hpDie:8, ac:16,atkMod:3,dmgDie:8, dmgBonus:2,cls:'cleric'},
+    {name:'Druid',    zone:'back', hpDie:8, ac:13,atkMod:3,dmgDie:8, dmgBonus:2,cls:'druid'},
+    {name:'Wizard',   zone:'back', hpDie:6, ac:12,atkMod:4,dmgDie:10,dmgBonus:3,cls:'wizard'},
+    {name:'Sorcerer', zone:'back', hpDie:6, ac:12,atkMod:4,dmgDie:10,dmgBonus:3,cls:'sorcerer'},
+    {name:'Bard',     zone:'back', hpDie:8, ac:13,atkMod:3,dmgDie:8, dmgBonus:2,cls:'bard'},
+    {name:'Warlock',  zone:'back', hpDie:8, ac:13,atkMod:4,dmgDie:10,dmgBonus:4,cls:'warlock'},
   ];
-
-  const FULL_SLOT = [0,2,3,4,4,5,5,6,6,7,7];
-  const HALF_SLOT = [0,1,1,1,1,2,2,3,3,4,4];
-
-  function slotLvl(cls,lvl){ return ['paladin','ranger'].includes(cls)?HALF_SLOT[lvl]:FULL_SLOT[lvl]; }
-  function spellSlots(cls,lvl){ if(cls==='warlock')return Math.min(4,Math.ceil(lvl/2)); return [0,2,3,4,4,5,5,6,6,7,7][lvl]||2; }
-
-  const CANTRIPS = {
-    wizard:  {name:'Fire Bolt',       type:'attack',dc:0,  dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,10)},
-    sorcerer:{name:'Fire Bolt',       type:'attack',dc:0,  dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,10)},
-    warlock: {name:'Eldritch Blast',  type:'attack',dc:0,  dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,10)+3},
-    cleric:  {name:'Sacred Flame',    type:'save',  dc:13, dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,8)},
-    druid:   {name:'Produce Flame',   type:'attack',dc:0,  dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,8)},
-    bard:    {name:'Vicious Mockery', type:'save',  dc:13, dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,4)},
+  const FULL_SLOT=[0,2,3,4,4,5,5,6,6,7,7];
+  const HALF_SLOT=[0,1,1,1,1,2,2,3,3,4,4];
+  function slotLvl(cls,lvl){return['paladin','ranger'].includes(cls)?HALF_SLOT[lvl]:FULL_SLOT[lvl];}
+  function spellSlots(cls,lvl){if(cls==='warlock')return Math.min(4,Math.ceil(lvl/2));return[0,2,3,4,4,5,5,6,6,7,7][lvl]||2;}
+  const CANTRIPS={
+    wizard:  {name:'Fire Bolt',      type:'attack',dc:0,  dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,10)},
+    sorcerer:{name:'Fire Bolt',      type:'attack',dc:0,  dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,10)},
+    warlock: {name:'Eldritch Blast', type:'attack',dc:0,  dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,10)+3},
+    cleric:  {name:'Sacred Flame',   type:'save',  dc:13, dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,8)},
+    druid:   {name:'Produce Flame',  type:'attack',dc:0,  dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,8)},
+    bard:    {name:'Vicious Mockery',type:'save',  dc:13, dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,4)},
   };
-
-  const SPELLS = {
+  const SPELLS={
     wizard:[
       {name:'Magic Missile',   minLvl:1,aoe:false,zone:null,   save:0,  dmg:(sl)=>{let t=0;for(let i=0;i<2+sl;i++)t+=ENGINE.roll(4)+1;return t;}},
       {name:'Scorching Ray',   minLvl:3,aoe:false,zone:null,   save:0,  dmg:(sl)=>ENGINE.rollN((sl+1)*2,6)},
@@ -167,24 +160,18 @@ const DATA = (() => {
       {name:'Hail of Thorns',  minLvl:3,aoe:false,zone:null,   save:13, dmg:(sl)=>ENGINE.rollN(sl,10)},
     ],
   };
-
-  return {CLASS_EMOJI,MONSTER_EMOJI,ATTACK_EMOJI,CLASS_ATTACK_TYPE,CLASSES,CANTRIPS,SPELLS,slotLvl,spellSlots};
+  return{CLASS_EMOJI,MONSTER_EMOJI,ATTACK_EMOJI,CLASS_ATTACK_TYPE,CLASSES,CANTRIPS,SPELLS,slotLvl,spellSlots};
 })();
 
-// ============================================================
-// ENGINE
-// ============================================================
-const ENGINE = (() => {
+const ENGINE=(()=>{
   function roll(n){return Math.floor(Math.random()*n)+1;}
   function rollN(n,d){let t=0;for(let i=0;i<n;i++)t+=roll(d);return t;}
-
   function parseDmg(s){
     const m=s.trim().match(/^(\d+)d(\d+)([+-]\d+)?$/i);
     if(!m)return()=>4;
     const[,n,d,mod]=m,b=mod?parseInt(mod):0;
     return()=>{let t=0;for(let i=0;i<+n;i++)t+=roll(+d);return Math.max(1,t+b);};
   }
-
   function hpForClass(cls,lvl){const die=DATA.CLASSES.find(c=>c.cls===cls)?.hpDie||8,con=2;return die+con+(lvl-1)*Math.floor(die/2+1+con);}
   function acForLevel(base,lvl){return base+Math.floor(lvl/4);}
   function atkForLevel(base,lvl){return base+Math.floor(lvl/3);}
@@ -224,7 +211,6 @@ const ENGINE = (() => {
   function pcAct(pc,livingM,party,emit){
     if(pc.dead||pc.down)return;
     if(!livingM().length)return;
-
     if(pc.isHealer&&!pc.healUsed){
       const downed=party.filter(p=>p.down&&!p.dead);
       const wounded=party.filter(p=>!p.dead&&!p.down&&p.chp<p.maxHp*0.4);
@@ -238,36 +224,30 @@ const ENGINE = (() => {
         return;
       }
     }
-
     const primaryTgt=()=>livingM().sort((a,b)=>b.chp-a.chp)[0];
     let tgt=livingM().find(m=>m.target===pc)||primaryTgt();
     if(!tgt||tgt.dead)tgt=primaryTgt();
     if(!tgt)return;
-
     let atts=pc.atts;
     if(pc.cls==='fighter'&&!pc.surgeUsed&&livingM().some(m=>m.chp<m.hp*0.5)){
       atts*=2;pc.surgeUsed=true;emit({type:'surge',caster:pc.name});
     }
-
     if(pc.spells&&pc.spells.length&&pc.slots>0){
       const spell=pc.spells[Math.floor(Math.random()*pc.spells.length)];
       pc.slots--;
       let dmg=spell.dmg(pc.sl,pc.lvl);
-      const saved=spell.save&&(roll(20)+2>=spell.save);
+      const saved=spell.save>0&&(roll(20)+2>=spell.save);
       if(saved)dmg=Math.floor(dmg/2);
-      tgt.chp-=dmg;
-      if(tgt.chp<=0)tgt.dead=true;
+      tgt.chp-=dmg;if(tgt.chp<=0)tgt.dead=true;
       emit({type:'spell',caster:pc.name,spell:spell.name,target:tgt.name,hit:true,saved,dmg});
       if(spell.aoe&&spell.zone==='melee'){
         for(const t of party.filter(p=>!p.dead&&!p.down&&p.zone==='melee'&&p!==pc)){
-          const ffd=Math.floor(spell.dmg(pc.sl,pc.lvl)/2);
-          t.chp-=ffd;
+          const ffd=Math.floor(spell.dmg(pc.sl,pc.lvl)/2);t.chp-=ffd;
           emit({type:'friendly_fire',target:t.name,dmg:ffd});
         }
       }
       tgt.target=pc;return;
     }
-
     if(pc.cantrip&&pc.spells){
       const c=pc.cantrip,dmg=c.dmg(pc.lvl);
       if(c.type==='attack'){
@@ -288,7 +268,6 @@ const ENGINE = (() => {
       }
       return;
     }
-
     for(let a=0;a<atts;a++){
       if(!livingM().length)break;
       if(tgt.dead){tgt=primaryTgt();if(!tgt)break;}
@@ -296,8 +275,7 @@ const ENGINE = (() => {
       if(pc.cls==='rogue'&&Math.random()<0.35){extra=sneakDmg(pc.lvl);emit({type:'sneak',rogue:pc.name,bonus:extra});}
       const ar=roll(20)+pc.atk,crit=ar-pc.atk===20;
       if(ar>=tgt.ac||crit){
-        let dmg=rollN(1,pc.dmgDie)+pc.dmgBonus;
-        if(crit)dmg+=rollN(1,pc.dmgDie);
+        let dmg=rollN(1,pc.dmgDie)+pc.dmgBonus;if(crit)dmg+=rollN(1,pc.dmgDie);
         tgt.chp-=dmg+extra;if(tgt.chp<=0)tgt.dead=true;
         emit({type:'attack',attacker:pc.name,target:tgt.name,hit:true,crit,dmg:dmg+extra,roll:ar});
         tgt.target=pc;
@@ -307,16 +285,13 @@ const ENGINE = (() => {
 
   function simulate(mCfgs,party){
     const monsters=mCfgs.map(m=>({
-      ...m,chp:m.hp,
-      dmgFn:parseDmg(m.dmgStr),
+      ...m,chp:m.hp,dmgFn:parseDmg(m.dmgStr),
       saDmgFn:m.saName?parseDmg(m.saDmg):null,
       em:m.boss?DATA.MONSTER_EMOJI.boss:DATA.MONSTER_EMOJI.minion,
       dead:false,target:null,meleePCs:[],
     }));
-
     const meleePCs=party.filter(p=>p.zone==='melee');
     meleePCs.forEach((p,i)=>monsters[i%monsters.length].meleePCs.push(p.name));
-
     const events=[];let round=0;
     const livingM=()=>monsters.filter(m=>!m.dead&&m.chp>0);
     const livingP=()=>party.filter(p=>!p.dead&&!p.down&&p.chp>0);
@@ -326,7 +301,6 @@ const ENGINE = (() => {
       round++;
       emit({type:'round_start',round});
       const allLiving=livingP();
-
       for(const m of livingM()){
         let myMelee=allLiving.filter(p=>p.zone==='melee'&&m.meleePCs.includes(p.name));
         if(!myMelee.length)myMelee=allLiving.filter(p=>p.zone==='melee');
@@ -334,17 +308,14 @@ const ENGINE = (() => {
         if(!pool.length)continue;
         if(!m.target||m.target.dead||m.target.down||m.target.chp<=0)
           m.target=pool.slice().sort((a,b)=>b.chp-a.chp)[0];
-
         if(m.saName&&round%m.saEvery===0){
           const targets=m.saZone==='all'?allLiving:m.saZone==='melee'?allLiving.filter(p=>p.zone==='melee'):allLiving.filter(p=>p.zone==='back');
           const dmgs=targets.map(t=>{
-            let d=m.saDmgFn();
-            if(m.saDC>0&&roll(20)+2>=m.saDC)d=Math.floor(d/2);
+            let d=m.saDmgFn();if(m.saDC>0&&roll(20)+2>=m.saDC)d=Math.floor(d/2);
             t.chp-=d;return d;
           });
           emit({type:'special',attacker:m.name,ability:m.saName,targets:targets.map(t=>t.name),dmg:dmgs});
         }
-
         let attsThisTurn=m.atts;
         if(m.type==='melee'&&round===1)attsThisTurn=Math.max(1,attsThisTurn-1);
         for(let a=0;a<attsThisTurn;a++){
@@ -357,7 +328,6 @@ const ENGINE = (() => {
           }else{emit({type:'attack',attacker:m.name,target:m.target.name,hit:false,crit:false,dmg:0,roll:ar});}
         }
       }
-
       for(const p of party){
         if(p.chp<=0&&!p.down&&!p.dead){p.down=true;p.chp=0;emit({type:'down',name:p.name});}
         if(p.down&&!p.dead){
@@ -367,12 +337,10 @@ const ENGINE = (() => {
           else{p.deathFail++;if(p.deathFail>=3){p.dead=true;emit({type:'death',name:p.name});}}
         }
       }
-
       if(!livingM().length)break;
       for(const pc of party){if(!livingM().length)break;pcAct(pc,livingM,party,emit);}
       emit({type:'round_end',round});
     }
-
     const monstersWon=livingM().length>0;
     emit({type:'combat_end',monstersWon,rounds:round,deaths:party.filter(p=>p.dead).length});
     return{monstersWon,rounds:round,deaths:party.filter(p=>p.dead).length,events};
@@ -381,56 +349,53 @@ const ENGINE = (() => {
   return{roll,rollN,simulate,buildPC};
 })();
 
-// ============================================================
-// UI
-// ============================================================
-const UI = (() => {
+const UI=(()=>{
   let monsterRows=[],pcRows=[],mIdCtr=0,pcIdCtr=0;
   let watchEvents=[],watchIdx=0,watchTimer=null,watchSpeed=500;
 
-  // ── Event → transcript text ──────────────────────────────
   function eventToText(ev){
-    const em=(name,state)=>{
-      const m=state.monsters.find(x=>x.name===name);if(m)return m.em;
-      const p=state.party.find(x=>x.name===name);return p?p.em:'';
+    const em=(name)=>{
+      const m=ev.state.monsters.find(x=>x.name===name);if(m)return m.em;
+      const p=ev.state.party.find(x=>x.name===name);return p?p.em:'';
     };
     switch(ev.type){
-      case 'round_start':  return `=== Round ${ev.round} ===`;
-      case 'round_end':    return '';
-      case 'combat_end':   return `--- ${ev.monstersWon?'Monsters win':'Party wins'} after ${ev.rounds} rounds. Deaths: ${ev.deaths} ---`;
-      case 'attack':       return ev.hit
-        ? `  ${em(ev.attacker,ev.state)} ${ev.attacker} attacks ${em(ev.target,ev.state)} ${ev.target}: ${ev.dmg}dmg${ev.crit?' CRIT':''} (${ev.roll})`
-        : `  ${em(ev.attacker,ev.state)} ${ev.attacker} attacks ${em(ev.target,ev.state)} ${ev.target}: MISS (${ev.roll})`;
-      case 'spell':        return `  ${em(ev.caster,ev.state)} ${ev.caster} casts ${ev.spell} at ${em(ev.target,ev.state)} ${ev.target}: ${ev.dmg}dmg${ev.saved?' (saved)':''}`;
-      case 'cantrip':      return ev.hit
-        ? `  ${em(ev.caster,ev.state)} ${ev.caster} casts ${ev.spell} at ${em(ev.target,ev.state)} ${ev.target}: ${ev.dmg}dmg${ev.crit?' CRIT':''}`
-        : `  ${em(ev.caster,ev.state)} ${ev.caster} casts ${ev.spell} at ${em(ev.target,ev.state)} ${ev.target}: MISS`;
-      case 'heal':         return `  ${em(ev.healer,ev.state)} ${ev.healer} heals ${em(ev.target,ev.state)} ${ev.target} for ${ev.amt}`;
-      case 'special':      return `  ${em(ev.attacker,ev.state)} ${ev.attacker} uses ${ev.ability}! → ${ev.targets.map((t,i)=>`${em(t,ev.state)}${t}:${ev.dmg[i]}dmg`).join(', ')}`;
-      case 'friendly_fire':return `    Friendly fire ${em(ev.target,ev.state)} ${ev.target}: ${ev.dmg}dmg`;
-      case 'surge':        return `  ⚡ ${ev.caster}: ACTION SURGE`;
-      case 'sneak':        return `  🗡️ Rogue: SNEAK ATTACK +${ev.bonus}`;
-      Not complete — got cut off again at the UI section. Continuing from the `sneak` case:
-
-```javascript
-      case 'down':         return `  ${em(ev.name,ev.state)} ${ev.name}: DOWN`;
-      case 'death':        return `  ${em(ev.name,ev.state)} ${ev.name}: DEAD`;
-      case 'recovery':     return `  ${em(ev.name,ev.state)} ${ev.name}: miraculous recovery`;
-      case 'stabilized':   return `  ${em(ev.name,ev.state)} ${ev.name}: stabilized`;
-      default:             return '';
+      case 'round_start':    return `=== Round ${ev.round} ===`;
+      case 'round_end':      return '';
+      case 'combat_end':     return `--- ${ev.monstersWon?'Monsters win':'Party wins'} after ${ev.rounds} rounds. Deaths: ${ev.deaths} ---`;
+      case 'attack':         return ev.hit
+        ?`  ${em(ev.attacker)} ${ev.attacker} attacks ${em(ev.target)} ${ev.target}: ${ev.dmg}dmg${ev.crit?' CRIT':''} (${ev.roll})`
+        :`  ${em(ev.attacker)} ${ev.attacker} attacks ${em(ev.target)} ${ev.target}: MISS (${ev.roll})`;
+      case 'spell':          return `  ${em(ev.caster)} ${ev.caster} casts ${ev.spell} at ${em(ev.target)} ${ev.target}: ${ev.dmg}dmg${ev.saved?' (saved)':''}`;
+      case 'cantrip':        return ev.hit
+        ?`  ${em(ev.caster)} ${ev.caster} casts ${ev.spell} at ${em(ev.target)} ${ev.target}: ${ev.dmg}dmg${ev.crit?' CRIT':''}`
+        :`  ${em(ev.caster)} ${ev.caster} casts ${ev.spell} at ${em(ev.target)} ${ev.target}: MISS`;
+      case 'heal':           return `  ${em(ev.healer)} ${ev.healer} heals ${em(ev.target)} ${ev.target} for ${ev.amt}`;
+      case 'special':        return `  ${em(ev.attacker)} ${ev.attacker} uses ${ev.ability}! → ${ev.targets.map((t,i)=>`${em(t)}${t}:${ev.dmg[i]}dmg`).join(', ')}`;
+      case 'friendly_fire':  return `    Friendly fire ${em(ev.target)} ${ev.target}: ${ev.dmg}dmg`;
+      case 'surge':          return `  ⚡ ${ev.caster}: ACTION SURGE`;
+      case 'sneak':          return `  🗡️ Rogue: SNEAK ATTACK +${ev.bonus}`;
+      case 'down':           return `  ${em(ev.name)} ${ev.name}: DOWN`;
+      case 'death':          return `  ${em(ev.name)} ${ev.name}: DEAD`;
+      case 'recovery':       return `  ${em(ev.name)} ${ev.name}: miraculous recovery`;
+      case 'stabilized':     return `  ${em(ev.name)} ${ev.name}: stabilized`;
+      default:               return '';
     }
   }
 
-  // ── HP bar color ─────────────────────────────────────────
   function hpColor(pct){return pct>0.5?'#639922':pct>0.25?'#BA7517':'#A32D2D';}
 
-  // ── Build combatant widget ────────────────────────────────
   function makeCombatant(em,chp,maxHp,dead,down,isDeathFlash,isHit,isCrit,actionEm){
     if(dead&&!isDeathFlash)return null;
     const wrap=document.createElement('div');wrap.className='combatant';
     const emEl=document.createElement('div');emEl.className='combatant-em';
     if(isDeathFlash){emEl.textContent=em+'💀';}
-    else{let label=em;if(isHit)label+=isCrit?'💥💥':'💥';if(actionEm)label+=actionEm;emEl.textContent=label;emEl.style.opacity=down?'0.5':'1';}
+    else{
+      let label=em;
+      if(isHit)label+=isCrit?'💥💥':'💥';
+      if(actionEm)label+=actionEm;
+      emEl.textContent=label;
+      emEl.style.opacity=down?'0.5':'1';
+    }
     wrap.appendChild(emEl);
     if(!dead&&!down&&!isDeathFlash&&maxHp>0){
       const pct=Math.max(0,Math.min(1,chp/maxHp));
@@ -442,29 +407,22 @@ const UI = (() => {
     return wrap;
   }
 
-  // ── Build battlefield clusters from state ─────────────────
   function buildClusters(state){
-    const {monsters,party}=state;
+    const{monsters,party}=state;
     const livingM=monsters.filter(m=>!m.dead);
     const clusters=[];const assigned=new Set();
     for(const m of livingM){
       if(assigned.has(m.name))continue;
-      const myPCNames=m.meleePCs;
       const cms=[m];assigned.add(m.name);
+      const myKey=m.meleePCs.slice().sort().join('|');
       for(const m2 of livingM){
         if(assigned.has(m2.name))continue;
-        if(JSON.stringify(m2.meleePCs.slice().sort())===JSON.stringify(myPCNames.slice().sort())){
-          cms.push(m2);assigned.add(m2.name);
-        }
+        if(m2.meleePCs.slice().sort().join('|')===myKey){cms.push(m2);assigned.add(m2.name);}
       }
       const pcMap=new Map();
-      for(const mc of cms){for(const pn of mc.meleePCs){const p=party.find(x=>x.name===pn);if(p)pcMap.set(p.name,p);}}
-      // Also include target if in back zone and targeting this cluster
       for(const mc of cms){
-        if(mc.targetName&&mc.targetZone==='back'){
-          const p=party.find(x=>x.name===mc.targetName);
-          if(p&&!p.dead)pcMap.set(p.name,p);
-        }
+        for(const pn of mc.meleePCs){const p=party.find(x=>x.name===pn);if(p)pcMap.set(p.name,p);}
+        if(mc.targetName&&mc.targetZone==='back'){const p=party.find(x=>x.name===mc.targetName);if(p&&!p.dead)pcMap.set(p.name,p);}
       }
       clusters.push({monsters:cms,pcs:[...pcMap.values()]});
     }
@@ -473,43 +431,68 @@ const UI = (() => {
     return{clusters,backPCs};
   }
 
-  // ── Render battlefield ────────────────────────────────────
+  function getActionEmoji(ev){
+    if(!ev)return null;
+    if(ev.type==='attack')return '⚔️';
+    if(ev.type==='spell'||ev.type==='cantrip')return '✨';
+    if(ev.type==='heal')return '💚';
+    if(ev.type==='special')return '🔥';
+    return null;
+  }
+
   function renderBattlefield(el,ev){
+    if(!el)return;
     el.innerHTML='';
     const state=ev.state;
     const rl=document.createElement('div');rl.className='round-label';
-    rl.textContent=ev.type==='round_start'?`Round ${ev.round}`:(ev.round?`Round ${ev.round}`:'');
+    rl.textContent=ev.round?`Round ${ev.round}`:'';
     el.appendChild(rl);
-
-    const {clusters,backPCs}=buildClusters(state);
+    const{clusters,backPCs}=buildClusters(state);
     const inner=document.createElement('div');inner.className='bf-inner';
 
-    // Determine hit/death targets from this event
-    const hitTarget   = (ev.type==='attack'||ev.type==='spell'||ev.type==='cantrip')&&ev.hit ? ev.target : null;
-    const critTarget  = hitTarget&&ev.crit ? ev.target : null;
-    const deathTarget = ev.type==='death' ? ev.name : null;
-    const attacker    = ev.attacker||ev.caster||null;
-    const actionEm    = getActionEmoji(ev);
+    const hitTarget=(ev.type==='attack'||ev.type==='spell'||ev.type==='cantrip')&&ev.hit?ev.target:null;
+    const critTarget=hitTarget&&ev.crit?ev.target:null;
+    const deathTarget=ev.type==='death'?ev.name:null;
+    const attacker=ev.attacker||ev.caster||ev.healer||null;
+    const actionEm=getActionEmoji(ev);
 
-    // Melee section
+    // Find which cluster the attacker is in
+    let attackerClusterIdx=-1;
+    for(let i=0;i<clusters.length;i++){
+      if(clusters[i].monsters.find(m=>m.name===attacker)||clusters[i].pcs.find(p=>p.name===attacker)){
+        attackerClusterIdx=i;break;
+      }
+    }
+    const attackerInBack=attacker&&backPCs.find(p=>p.name===attacker);
+
     const meleeSection=document.createElement('div');meleeSection.className='bf-section';
     const ml=document.createElement('div');ml.className='bf-label';ml.textContent='Melee';
     meleeSection.appendChild(ml);
     const clustersDiv=document.createElement('div');clustersDiv.className='bf-clusters';
-    for(const cluster of clusters){
+
+    for(let ci=0;ci<clusters.length;ci++){
+      const cluster=clusters[ci];
       const cd=document.createElement('div');cd.className='bf-cluster';
       const mrow=document.createElement('div');mrow.className='bf-row';
       for(const m of cluster.monsters){
         const isDeath=deathTarget===m.name;
-        const cw=makeCombatant(m.em,m.chp,m.hp,m.dead,false,isDeath,hitTarget===m.name&&!isDeath,critTarget===m.name,attacker===m.name?actionEm:null);
+        const isAttk=attacker===m.name&&ci===attackerClusterIdx;
+        const cw=makeCombatant(m.em,m.chp,m.hp,m.dead,false,isDeath,hitTarget===m.name&&!isDeath,critTarget===m.name,isAttk?actionEm:null);
         if(cw)mrow.appendChild(cw);
       }
       cd.appendChild(mrow);
+      // Action row — show if attacker is in this cluster
+      if(ci===attackerClusterIdx&&actionEm){
+        const ar=document.createElement('div');ar.className='bf-action-row';ar.textContent=actionEm;cd.appendChild(ar);
+      } else {
+        const ar=document.createElement('div');ar.className='bf-action-row';cd.appendChild(ar);
+      }
       if(cluster.pcs.length){
         const prow=document.createElement('div');prow.className='bf-row';
         for(const p of cluster.pcs){
           const isDeath=deathTarget===p.name;
-          const cw=makeCombatant(p.em,p.chp,p.maxHp,p.dead,p.down,isDeath,hitTarget===p.name&&!isDeath,critTarget===p.name,attacker===p.name?actionEm:null);
+          const isAttk=attacker===p.name&&ci===attackerClusterIdx;
+          const cw=makeCombatant(p.em,p.chp,p.maxHp,p.dead,p.down,isDeath,hitTarget===p.name&&!isDeath,critTarget===p.name,isAttk?actionEm:null);
           if(cw)prow.appendChild(cw);
         }
         cd.appendChild(prow);
@@ -521,14 +504,14 @@ const UI = (() => {
 
     const dv=document.createElement('div');dv.className='bf-divider';inner.appendChild(dv);
 
-    // Back section
     const backSection=document.createElement('div');backSection.className='bf-section';
     const bl=document.createElement('div');bl.className='bf-label';bl.textContent='Back';
     backSection.appendChild(bl);
     const brow=document.createElement('div');brow.className='bf-row';
     for(const p of backPCs){
       const isDeath=deathTarget===p.name;
-      const cw=makeCombatant(p.em,p.chp,p.maxHp,p.dead,p.down,isDeath,hitTarget===p.name&&!isDeath,critTarget===p.name,attacker===p.name?actionEm:null);
+      const isAttk=attacker===p.name&&!!attackerInBack;
+      const cw=makeCombatant(p.em,p.chp,p.maxHp,p.dead,p.down,isDeath,hitTarget===p.name&&!isDeath,critTarget===p.name,isAttk?actionEm:null);
       if(cw)brow.appendChild(cw);
     }
     backSection.appendChild(brow);
@@ -536,31 +519,15 @@ const UI = (() => {
     el.appendChild(inner);
   }
 
-  function getActionEmoji(ev){
-    if(!ev)return null;
-    if(ev.type==='attack'){
-      // Determine if attacker is monster or PC
-      return '⚔️';
-    }
-    if(ev.type==='spell'||ev.type==='cantrip')return '✨';
-    if(ev.type==='heal')return '💚';
-    if(ev.type==='special')return '💥';
-    return null;
-  }
-
-  // ── Monster builder ───────────────────────────────────────
   function addMonster(isBoss=false,data={}){
     const id=mIdCtr++;
     monsterRows.push({id,boss:isBoss||monsterRows.length===0,...data});
     renderMonsterBuilder();
   }
-
   function removeMonster(id){
     if(monsterRows.find(m=>m.id===id)?.boss){alert('Cannot remove boss.');return;}
-    monsterRows=monsterRows.filter(m=>m.id!==id);
-    renderMonsterBuilder();
+    monsterRows=monsterRows.filter(m=>m.id!==id);renderMonsterBuilder();
   }
-
   function renderMonsterBuilder(){
     const el=document.getElementById('monster-builder');
     el.innerHTML=monsterRows.map(m=>{
@@ -598,21 +565,17 @@ const UI = (() => {
     }).join('');
   }
 
-  // ── Party builder ─────────────────────────────────────────
   function addPC(cls='Fighter'){
     const id=pcIdCtr++;
     const def=DATA.CLASSES.find(c=>c.name===cls)||DATA.CLASSES[0];
     pcRows.push({id,cls:def.cls,zone:def.zone});
     renderPartyBuilder();
   }
-
   function removePC(id){pcRows=pcRows.filter(p=>p.id!==id);renderPartyBuilder();}
-
   function updatePC(id,key,val){
     const p=pcRows.find(p=>p.id===id);
     if(p){p[key]=val;if(key==='cls'){const def=DATA.CLASSES.find(c=>c.cls===val);if(def)p.zone=def.zone;renderPartyBuilder();}}
   }
-
   function renderPartyBuilder(){
     const el=document.getElementById('party-builder');
     if(!pcRows.length){el.innerHTML='<div style="color:var(--color-text-secondary);font-size:12px;margin-bottom:8px;">No PCs.</div>';return;}
@@ -635,7 +598,6 @@ const UI = (() => {
       </div>`).join('');
   }
 
-  // ── Read form values ──────────────────────────────────────
   function readMonsters(){
     return monsterRows.map(m=>({
       id:m.id,boss:m.boss,
@@ -654,11 +616,8 @@ const UI = (() => {
     }));
   }
 
-  function buildParty(lvl){
-    return pcRows.map(p=>ENGINE.buildPC(p,lvl));
-  }
+  function buildParty(lvl){return pcRows.map(p=>ENGINE.buildPC(p,lvl));}
 
-  // ── Run simulations ───────────────────────────────────────
   function runSims(){
     const mCfgs=readMonsters();
     const lvl=+document.getElementById('plevel').value;
@@ -689,7 +648,6 @@ const UI = (() => {
       </div>`;
   }
 
-  // ── Watch fight ───────────────────────────────────────────
   function watchFight(){
     const mCfgs=readMonsters();
     const lvl=+document.getElementById('plevel').value;
@@ -698,8 +656,8 @@ const UI = (() => {
     const result=ENGINE.simulate(mCfgs,party);
     watchEvents=result.events.filter(ev=>ev.type!=='round_end'&&eventToText(ev)!=='');
     watchIdx=0;
-    const out=document.getElementById('output');
     const transcript=result.events.map(ev=>eventToText(ev)).filter(t=>t!=='').join('\n');
+    const out=document.getElementById('output');
     out.innerHTML=`
       <div id="battlefield" class="battlefield"></div>
       <div class="ticker-box"><div class="ticker-line" id="ticker-text">...</div></div>
@@ -740,7 +698,7 @@ const UI = (() => {
     setTimeout(()=>{
       if(document.getElementById('ticker-text')===el){
         el.textContent=line||'·';el.classList.remove('fade');
-        if(prog)prog.textContent=`${watchIdx+1} / ${watchEvents.length}`;
+        if(prog)prog.textContent=`${watchIdx} / ${watchEvents.length}`;
       }
     },150);
     watchIdx++;
@@ -776,7 +734,6 @@ const UI = (() => {
     }
   }
 
-  // ── Save / Load ───────────────────────────────────────────
   function saveEncounter(){
     const mCfgs=readMonsters();
     try{localStorage.setItem('playtester_encounter',JSON.stringify({monsters:mCfgs}));alert('Saved.');}
@@ -794,24 +751,11 @@ const UI = (() => {
     }catch(e){alert('Failed to load.');}
   }
 
-  // ── Public API ────────────────────────────────────────────
-  return{
-    addMonster,removeMonster,
-    addPC,removePC,updatePC,
-    runSims,watchFight,
-    toggleWatch,stepWatch,setSpeed,
-    saveEncounter,loadEncounter,
-  };
+  return{addMonster,removeMonster,addPC,removePC,updatePC,runSims,watchFight,toggleWatch,stepWatch,setSpeed,saveEncounter,loadEncounter};
 })();
 
-// ============================================================
-// INIT
-// ============================================================
 UI.addMonster(true,{name:'Capricorn-Garnet',ac:17,hp:50,atk:5,dmg:'1d8+2',atts:1,type:'melee',saname:'Horn Gore',sadmg:'2d6+2',sadc:0,sazone:'back',saevery:3});
-UI.addPC('Fighter');
-UI.addPC('Cleric');
-UI.addPC('Rogue');
-UI.addPC('Wizard');
+UI.addPC('Fighter');UI.addPC('Cleric');UI.addPC('Rogue');UI.addPC('Wizard');
 </script>
 </body>
 </html>
