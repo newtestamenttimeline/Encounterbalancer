@@ -1,4 +1,9 @@
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Encounter Balancer</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:var(--font-mono,monospace);font-size:13px;color:var(--color-text-primary);padding:20px;}
@@ -37,7 +42,7 @@ button:disabled{opacity:0.35;cursor:default;}
 .bf-action-row{min-height:20px;display:flex;align-items:center;justify-content:center;font-size:14px;}
 .bf-divider{width:1px;background:var(--color-border-tertiary);margin:0 4px;align-self:stretch;}
 .combatant{display:flex;flex-direction:column;align-items:center;gap:2px;}
-.combatant-em{font-size:20px;line-height:1;transition:opacity 0.15s;}
+.combatant-em{font-size:20px;line-height:1;}
 .hp-bar-wrap{width:32px;height:4px;background:var(--color-border-tertiary);border-radius:2px;overflow:hidden;}
 .hp-bar{height:4px;border-radius:2px;transition:width 0.2s;}
 .ticker-box{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:16px;margin-bottom:8px;min-height:56px;display:flex;align-items:center;justify-content:center;}
@@ -56,906 +61,757 @@ button:disabled{opacity:0.35;cursor:default;}
 .progress{font-size:11px;color:var(--color-text-secondary);}
 .round-label{font-size:10px;color:var(--color-text-secondary);margin-bottom:6px;}
 </style>
+</head>
+<body>
 
 <h2>Encounter</h2>
 <div id="monster-builder"></div>
-<button onclick="addMonster(false)" style="margin-bottom:4px;">+ Add minion</button>
+<button onclick="UI.addMonster(false)" style="margin-bottom:4px;">+ Add minion</button>
 <hr class="divider">
 <h2>Party</h2>
 <div class="row" style="margin-bottom:12px;">
   <div class="field"><label>Level</label>
-    <select id="plevel"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select>
+    <select id="plevel">
+      <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+      <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+    </select>
   </div>
   <div class="field"><label>Simulations</label><input id="nsims" type="number" value="100"/></div>
 </div>
 <div id="party-builder"></div>
-<button onclick="addPC()">+ Add PC</button>
+<button onclick="UI.addPC()">+ Add PC</button>
 <hr class="divider">
 <div class="btn-row">
-  <button class="primary" onclick="runSims()">Run simulations</button>
-  <button onclick="watchFight()">Watch one fight</button>
-  <button onclick="saveEncounter()">Save encounter</button>
-  <button onclick="loadEncounter()">Load encounter</button>
+  <button class="primary" onclick="UI.runSims()">Run simulations</button>
+  <button onclick="UI.watchFight()">Watch one fight</button>
+  <button onclick="UI.saveEncounter()">Save encounter</button>
+  <button onclick="UI.loadEncounter()">Load encounter</button>
 </div>
 <div id="output"></div>
 
 <script>
-const CLASS_EMOJI={fighter:'⚔️',barbarian:'🪓',paladin:'🛡️',rogue:'🗡️',ranger:'🏹',cleric:'✨',druid:'🌿',wizard:'🔮',sorcerer:'💫',bard:'🎵',warlock:'👁️'};
-const MONSTER_EMOJI={boss:'💀',minion:'👺'};
-const CLASS_ATTACK_TYPE={fighter:'melee',barbarian:'melee',paladin:'melee',rogue:'melee',ranger:'ranged',cleric:'magic',druid:'magic',wizard:'magic',sorcerer:'magic',bard:'magic',warlock:'magic'};
-const ATTACK_EMOJI={melee:'⚔️',ranged:'🏹',magic:'✨'};
+// ============================================================
+// DATA
+// ============================================================
+const DATA = (() => {
+  const CLASS_EMOJI = {fighter:'⚔️',barbarian:'🪓',paladin:'🛡️',rogue:'🗡️',ranger:'🏹',cleric:'✨',druid:'🌿',wizard:'🔮',sorcerer:'💫',bard:'🎵',warlock:'👁️'};
+  const MONSTER_EMOJI = {boss:'💀',minion:'👺'};
+  const ATTACK_EMOJI  = {melee:'⚔️',ranged:'🏹',magic:'✨'};
+  const CLASS_ATTACK_TYPE = {fighter:'melee',barbarian:'melee',paladin:'melee',rogue:'melee',ranger:'ranged',cleric:'magic',druid:'magic',wizard:'magic',sorcerer:'magic',bard:'magic',warlock:'magic'};
 
-const CLASSES=[
-  {name:'Fighter',  zone:'melee',hpDie:10,ac:16,atkMod:3,dmg:()=>roll(8)+3, cls:'fighter'},
-  {name:'Barbarian',zone:'melee',hpDie:12,ac:15,atkMod:4,dmg:()=>roll(12)+4,cls:'barbarian'},
-  {name:'Paladin',  zone:'melee',hpDie:10,ac:17,atkMod:3,dmg:()=>roll(8)+3, cls:'paladin'},
-  {name:'Rogue',    zone:'melee',hpDie:8, ac:14,atkMod:4,dmg:()=>roll(6)+3, cls:'rogue'},
-  {name:'Ranger',   zone:'back', hpDie:10,ac:15,atkMod:3,dmg:()=>roll(8)+3, cls:'ranger'},
-  {name:'Cleric',   zone:'back', hpDie:8, ac:16,atkMod:3,dmg:()=>roll(8)+2, cls:'cleric'},
-  {name:'Druid',    zone:'back', hpDie:8, ac:13,atkMod:3,dmg:()=>roll(8)+2, cls:'druid'},
-  {name:'Wizard',   zone:'back', hpDie:6, ac:12,atkMod:4,dmg:()=>roll(10)+3,cls:'wizard'},
-  {name:'Sorcerer', zone:'back', hpDie:6, ac:12,atkMod:4,dmg:()=>roll(10)+3,cls:'sorcerer'},
-  {name:'Bard',     zone:'back', hpDie:8, ac:13,atkMod:3,dmg:()=>roll(8)+2, cls:'bard'},
-  {name:'Warlock',  zone:'back', hpDie:8, ac:13,atkMod:4,dmg:()=>roll(10)+4,cls:'warlock'},
-];
-const CANTRIPS={
-  wizard:  {name:'Fire Bolt',      type:'attack',dmg:lvl=>rollN(lvl>=5?2:1,10)},
-  sorcerer:{name:'Fire Bolt',      type:'attack',dmg:lvl=>rollN(lvl>=5?2:1,10)},
-  warlock: {name:'Eldritch Blast', type:'attack',dmg:lvl=>rollN(lvl>=5?2:1,10)+3},
-  cleric:  {name:'Sacred Flame',   type:'save',  dc:13,dmg:lvl=>rollN(lvl>=5?2:1,8)},
-  druid:   {name:'Produce Flame',  type:'attack',dmg:lvl=>rollN(lvl>=5?2:1,8)},
-  bard:    {name:'Vicious Mockery',type:'save',  dc:13,dmg:lvl=>rollN(lvl>=5?2:1,4)},
-};
-const FULL_SLOT=[0,1,1,2,2,3,3,4,4,5,5];
-const HALF_SLOT=[0,1,1,1,1,2,2,3,3,4,4];
-function slotLvl(cls,lvl){return['paladin','ranger'].includes(cls)?HALF_SLOT[lvl]:FULL_SLOT[lvl];}
-const SPELLS={
-  wizard:[
-    {name:'Magic Missile',minLvl:1,aoe:false,save:0,dmg:sl=>{let t=0;for(let i=0;i<2+sl;i++)t+=roll(4)+1;return t;}},
-    {name:'Scorching Ray',minLvl:3,aoe:false,save:0,dmg:sl=>rollN((sl+1)*2,6)},
-    {name:'Fireball',minLvl:5,aoe:true,zone:'melee',save:13,dmg:sl=>rollN(5+sl,6)},
-  ],
-  sorcerer:[
-    {name:'Chromatic Orb',minLvl:1,aoe:false,save:0,dmg:sl=>rollN(2+sl,8)},
-    {name:'Scorching Ray',minLvl:3,aoe:false,save:0,dmg:sl=>rollN((sl+1)*2,6)},
-    {name:'Fireball',minLvl:5,aoe:true,zone:'melee',save:13,dmg:sl=>rollN(5+sl,6)},
-  ],
-  druid:[
-    {name:'Thunderwave',minLvl:1,aoe:true,zone:'melee',save:13,dmg:sl=>rollN(sl*2,8)},
-    {name:'Moonbeam',minLvl:3,aoe:false,save:13,dmg:sl=>rollN(sl,10)},
-    {name:'Call Lightning',minLvl:5,aoe:false,save:13,dmg:sl=>rollN(sl,10)},
-  ],
-  cleric:[
-    {name:'Guiding Bolt',minLvl:1,aoe:false,save:0,dmg:sl=>rollN(3+sl,6)},
-    {name:'Spiritual Weapon',minLvl:3,aoe:false,save:0,dmg:sl=>rollN(Math.floor(sl/2)+1,8)+3},
-    {name:'Spirit Guardians',minLvl:5,aoe:true,zone:'melee',save:13,dmg:sl=>rollN(sl,8)},
-  ],
-  bard:[
-    {name:'Dissonant Whispers',minLvl:1,aoe:false,save:13,dmg:sl=>rollN(2+sl,6)},
-    {name:'Shatter',minLvl:3,aoe:true,zone:'melee',save:13,dmg:sl=>rollN(1+sl,8)},
-    {name:'Hypnotic Pattern',minLvl:5,aoe:false,save:14,dmg:()=>0},
-  ],
-  warlock:[
-    {name:'Eldritch Blast',minLvl:1,aoe:false,save:0,dmg:(sl,cl)=>rollN(cl>=5?2:1,10)+(cl>=5?6:3)},
-    {name:'Hunger of Hadar',minLvl:5,aoe:true,zone:'melee',save:13,dmg:sl=>rollN(sl,6)+rollN(sl,6)},
-  ],
-  paladin:[
-    {name:'Divine Smite',minLvl:1,aoe:false,save:0,dmg:sl=>rollN(sl+1,8)},
-    {name:'Thunderous Smite',minLvl:3,aoe:false,save:13,dmg:sl=>rollN(sl,6)},
-  ],
-  ranger:[
-    {name:"Hunter's Mark",minLvl:1,aoe:false,save:0,dmg:()=>roll(6)},
-    {name:'Hail of Thorns',minLvl:3,aoe:false,save:13,dmg:sl=>rollN(sl,10)},
-  ],
-};
+  const CLASSES = [
+    {name:'Fighter',  zone:'melee',hpDie:10,ac:16,atkMod:3,dmgDie:8, dmgBonus:3, cls:'fighter'},
+    {name:'Barbarian',zone:'melee',hpDie:12,ac:15,atkMod:4,dmgDie:12,dmgBonus:4, cls:'barbarian'},
+    {name:'Paladin',  zone:'melee',hpDie:10,ac:17,atkMod:3,dmgDie:8, dmgBonus:3, cls:'paladin'},
+    {name:'Rogue',    zone:'melee',hpDie:8, ac:14,atkMod:4,dmgDie:6, dmgBonus:3, cls:'rogue'},
+    {name:'Ranger',   zone:'back', hpDie:10,ac:15,atkMod:3,dmgDie:8, dmgBonus:3, cls:'ranger'},
+    {name:'Cleric',   zone:'back', hpDie:8, ac:16,atkMod:3,dmgDie:8, dmgBonus:2, cls:'cleric'},
+    {name:'Druid',    zone:'back', hpDie:8, ac:13,atkMod:3,dmgDie:8, dmgBonus:2, cls:'druid'},
+    {name:'Wizard',   zone:'back', hpDie:6, ac:12,atkMod:4,dmgDie:10,dmgBonus:3, cls:'wizard'},
+    {name:'Sorcerer', zone:'back', hpDie:6, ac:12,atkMod:4,dmgDie:10,dmgBonus:3, cls:'sorcerer'},
+    {name:'Bard',     zone:'back', hpDie:8, ac:13,atkMod:3,dmgDie:8, dmgBonus:2, cls:'bard'},
+    {name:'Warlock',  zone:'back', hpDie:8, ac:13,atkMod:4,dmgDie:10,dmgBonus:4, cls:'warlock'},
+  ];
 
-function roll(n){return Math.floor(Math.random()*n)+1;}
-function rollN(n,d){let t=0;for(let i=0;i<n;i++)t+=roll(d);return t;}
-function parseDmg(s){
-  const m=s.trim().match(/^(\d+)d(\d+)([+-]\d+)?$/i);
-  if(!m)return()=>4;
-  const[,n,d,mod]=m,b=mod?parseInt(mod):0;
-  return()=>{let t=0;for(let i=0;i<+n;i++)t+=roll(+d);return Math.max(1,t+b);}
-}
-function hpForClass(cls,lvl){const die=CLASSES.find(c=>c.cls===cls)?.hpDie||8,con=2;return die+con+(lvl-1)*Math.floor(die/2+1+con);}
-function acForLevel(base,lvl){return base+Math.floor(lvl/4);}
-function atkForLevel(base,lvl){return base+Math.floor(lvl/3);}
-function extraAtts(cls,lvl){
-  if(cls==='fighter')return lvl>=11?3:lvl>=5?2:1;
-  if(['paladin','ranger','barbarian'].includes(cls))return lvl>=5?2:1;
-  return 1;
-}
-function spellSlots(cls,lvl){
-  if(cls==='warlock')return Math.min(4,Math.ceil(lvl/2));
-  return [0,2,3,4,4,5,5,6,6,7,7][lvl]||2;
-}
-function sneakDmg(lvl){let t=0;for(let i=0;i<Math.ceil(lvl/2);i++)t+=roll(6);return t;}
+  const FULL_SLOT = [0,2,3,4,4,5,5,6,6,7,7];
+  const HALF_SLOT = [0,1,1,1,1,2,2,3,3,4,4];
 
-function parseAction(line,monsters,party){
-  if(!line)return null;
-  const t=line.trim();
-  const allM=monsters.map(m=>m.name);
-  const allP=party.map(p=>p.n);
-  const allNames=[...allM,...allP];
-  const findName=str=>allNames.find(n=>str.includes(n))||null;
-  const findM=str=>allM.find(n=>str.includes(n))||null;
-  const attackerClass=name=>{const pc=party.find(p=>p.n===name);return pc?CLASS_ATTACK_TYPE[pc.cls]:'melee';};
+  function slotLvl(cls,lvl){ return ['paladin','ranger'].includes(cls)?HALF_SLOT[lvl]:FULL_SLOT[lvl]; }
+  function spellSlots(cls,lvl){ if(cls==='warlock')return Math.min(4,Math.ceil(lvl/2)); return [0,2,3,4,4,5,5,6,6,7,7][lvl]||2; }
 
-  if(t.includes(' heals ')&&t.includes(' for ')){
-    const tn=findName(t.split(' heals ')[1]||'');
-    return{actionEm:'💚',targetName:tn,attackerName:findName(t.split(' heals ')[0]),hit:true,crit:false};
-  }
-  if(t.includes(' takes ')&&t.includes('dmg')){
-    const tn=findName(t.split(' takes ')[0]||'');
-    return{actionEm:'🔥',targetName:tn,attackerName:null,hit:true,crit:false};
-  }
-  if(t.startsWith('Friendly fire')){
-    const tn=findName(t);
-    return{actionEm:'✨',targetName:tn,attackerName:null,hit:true,crit:false};
-  }
-  if(t.includes(' uses ')){
-    const an=findM(t.split(' uses ')[0]||'')||findName(t.split(' uses ')[0]||'');
-    return{actionEm:'🔥',targetName:null,attackerName:an,hit:false,crit:false};
-  }
-  if(t.includes(': DEAD')){
-    const tn=findName(t.split(':')[0]||'');
-    return{actionEm:'💀',targetName:tn,attackerName:null,hit:false,crit:false,isDeath:true};
-  }
-  if(t.includes(' attacks ')){
-    const parts=t.split(' attacks ');
-    const an=findName(parts[0]||'');
-    const afterAtk=parts[1]||'';
-    const ci=afterAtk.indexOf(':');
-    const tn=findName(ci>=0?afterAtk.slice(0,ci):afterAtk);
-    const result=ci>=0?afterAtk.slice(ci+1):'';
-    const hit=!result.trim().startsWith('MISS');
-    const crit=result.includes('CRIT');
-    const isM=allM.includes(an);
-    const atkEm=isM?'⚔️':ATTACK_EMOJI[attackerClass(an)]||'⚔️';
-    return{actionEm:atkEm,targetName:tn,attackerName:an,hit,crit};
-  }
-  if(t.includes(' casts ')&&t.includes(' at ')){
-    const an=findName(t.split(' casts ')[0]||'');
-    const atParts=t.split(' at ');
-    const afterAt=atParts[atParts.length-1]||'';
-    const ci=afterAt.indexOf(':');
-    const tn=findName(ci>=0?afterAt.slice(0,ci):afterAt);
-    const result=ci>=0?afterAt.slice(ci+1):'';
-    const hit=result.length>0&&!result.trim().startsWith('MISS')&&!result.includes('saves');
-    const crit=result.includes('CRIT');
-    return{actionEm:'✨',targetName:tn,attackerName:an,hit,crit};
-  }
-  if(t.includes(' casts ')&&!t.includes(' at ')){
-    const an=findName(t.split(' casts ')[0]||'');
-    const tn=findName(t.split(':').slice(1).join(':'));
-    return{actionEm:'✨',targetName:tn,attackerName:an,hit:false,crit:false};
-  }
-  return null;
-}
+  const CANTRIPS = {
+    wizard:  {name:'Fire Bolt',       type:'attack',dc:0,  dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,10)},
+    sorcerer:{name:'Fire Bolt',       type:'attack',dc:0,  dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,10)},
+    warlock: {name:'Eldritch Blast',  type:'attack',dc:0,  dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,10)+3},
+    cleric:  {name:'Sacred Flame',    type:'save',  dc:13, dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,8)},
+    druid:   {name:'Produce Flame',   type:'attack',dc:0,  dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,8)},
+    bard:    {name:'Vicious Mockery', type:'save',  dc:13, dmg:(lvl)=>ENGINE.rollN(lvl>=5?2:1,4)},
+  };
 
-// ── HP bar color ──────────────────────────────────────────────────────────────
-function hpBarColor(pct){
-  if(pct>0.5)return'#639922';
-  if(pct>0.25)return'#BA7517';
-  return'#A32D2D';
-}
+  const SPELLS = {
+    wizard:[
+      {name:'Magic Missile',   minLvl:1,aoe:false,zone:null,   save:0,  dmg:(sl)=>{let t=0;for(let i=0;i<2+sl;i++)t+=ENGINE.roll(4)+1;return t;}},
+      {name:'Scorching Ray',   minLvl:3,aoe:false,zone:null,   save:0,  dmg:(sl)=>ENGINE.rollN((sl+1)*2,6)},
+      {name:'Fireball',        minLvl:5,aoe:true, zone:'melee',save:13, dmg:(sl)=>ENGINE.rollN(5+sl,6)},
+    ],
+    sorcerer:[
+      {name:'Chromatic Orb',   minLvl:1,aoe:false,zone:null,   save:0,  dmg:(sl)=>ENGINE.rollN(2+sl,8)},
+      {name:'Scorching Ray',   minLvl:3,aoe:false,zone:null,   save:0,  dmg:(sl)=>ENGINE.rollN((sl+1)*2,6)},
+      {name:'Fireball',        minLvl:5,aoe:true, zone:'melee',save:13, dmg:(sl)=>ENGINE.rollN(5+sl,6)},
+    ],
+    druid:[
+      {name:'Thunderwave',     minLvl:1,aoe:true, zone:'melee',save:13, dmg:(sl)=>ENGINE.rollN(sl*2,8)},
+      {name:'Moonbeam',        minLvl:3,aoe:false,zone:null,   save:13, dmg:(sl)=>ENGINE.rollN(sl,10)},
+      {name:'Call Lightning',  minLvl:5,aoe:false,zone:null,   save:13, dmg:(sl)=>ENGINE.rollN(sl,10)},
+    ],
+    cleric:[
+      {name:'Guiding Bolt',    minLvl:1,aoe:false,zone:null,   save:0,  dmg:(sl)=>ENGINE.rollN(3+sl,6)},
+      {name:'Spiritual Weapon',minLvl:3,aoe:false,zone:null,   save:0,  dmg:(sl)=>ENGINE.rollN(Math.floor(sl/2)+1,8)+3},
+      {name:'Spirit Guardians',minLvl:5,aoe:true, zone:'melee',save:13, dmg:(sl)=>ENGINE.rollN(sl,8)},
+    ],
+    bard:[
+      {name:'Dissonant Whispers',minLvl:1,aoe:false,zone:null,   save:13,dmg:(sl)=>ENGINE.rollN(2+sl,6)},
+      {name:'Shatter',           minLvl:3,aoe:true, zone:'melee',save:13,dmg:(sl)=>ENGINE.rollN(1+sl,8)},
+      {name:'Hypnotic Pattern',  minLvl:5,aoe:false,zone:null,   save:14,dmg:()=>0},
+    ],
+    warlock:[
+      {name:'Eldritch Blast',  minLvl:1,aoe:false,zone:null,   save:0,  dmg:(sl,cl)=>ENGINE.rollN(cl>=5?2:1,10)+(cl>=5?6:3)},
+      {name:'Hunger of Hadar', minLvl:5,aoe:true, zone:'melee',save:13, dmg:(sl)=>ENGINE.rollN(sl,6)+ENGINE.rollN(sl,6)},
+    ],
+    paladin:[
+      {name:'Divine Smite',    minLvl:1,aoe:false,zone:null,   save:0,  dmg:(sl)=>ENGINE.rollN(sl+1,8)},
+      {name:'Thunderous Smite',minLvl:3,aoe:false,zone:null,   save:13, dmg:(sl)=>ENGINE.rollN(sl,6)},
+    ],
+    ranger:[
+      {name:"Hunter's Mark",   minLvl:1,aoe:false,zone:null,   save:0,  dmg:()=>ENGINE.roll(6)},
+      {name:'Hail of Thorns',  minLvl:3,aoe:false,zone:null,   save:13, dmg:(sl)=>ENGINE.rollN(sl,10)},
+    ],
+  };
 
-// ── Combatant widget ──────────────────────────────────────────────────────────
-function makeCombatant(em,chp,maxHp,dead,down,isDeathFlash,isHit,isCrit,isAttacker,actionEm){
-  const wrap=document.createElement('div');
-  wrap.className='combatant';
+  return {CLASS_EMOJI,MONSTER_EMOJI,ATTACK_EMOJI,CLASS_ATTACK_TYPE,CLASSES,CANTRIPS,SPELLS,slotLvl,spellSlots};
+})();
 
-  const emEl=document.createElement('div');
-  emEl.className='combatant-em';
+// ============================================================
+// ENGINE
+// ============================================================
+const ENGINE = (() => {
+  function roll(n){return Math.floor(Math.random()*n)+1;}
+  function rollN(n,d){let t=0;for(let i=0;i<n;i++)t+=roll(d);return t;}
 
-  if(isDeathFlash){
-    // Show emoji + skull, full opacity — will be gone next render
-    emEl.textContent=em+'💀';
-    emEl.style.opacity='1';
-  } else if(dead){
-    // Gone — return empty
-    return null;
-  } else {
-    let label=em;
-    if(isHit) label+=isCrit?'💥💥':'💥';
-    if(isAttacker&&actionEm) label+=actionEm;
-    emEl.textContent=label;
-    emEl.style.opacity=down?'0.5':'1';
+  function parseDmg(s){
+    const m=s.trim().match(/^(\d+)d(\d+)([+-]\d+)?$/i);
+    if(!m)return()=>4;
+    const[,n,d,mod]=m,b=mod?parseInt(mod):0;
+    return()=>{let t=0;for(let i=0;i<+n;i++)t+=roll(+d);return Math.max(1,t+b);};
   }
-  wrap.appendChild(emEl);
 
-  // HP bar — only if alive and not down
-  if(!dead&&!down&&!isDeathFlash&&maxHp>0){
-    const pct=Math.max(0,Math.min(1,chp/maxHp));
-    const barWrap=document.createElement('div');barWrap.className='hp-bar-wrap';
-    const bar=document.createElement('div');bar.className='hp-bar';
-    bar.style.width=`${Math.round(pct*100)}%`;
-    bar.style.background=hpBarColor(pct);
-    barWrap.appendChild(bar);
-    wrap.appendChild(barWrap);
-  }
-  return wrap;
-}
+  function hpForClass(cls,lvl){const die=DATA.CLASSES.find(c=>c.cls===cls)?.hpDie||8,con=2;return die+con+(lvl-1)*Math.floor(die/2+1+con);}
+  function acForLevel(base,lvl){return base+Math.floor(lvl/4);}
+  function atkForLevel(base,lvl){return base+Math.floor(lvl/3);}
+  function extraAtks(cls,lvl){if(cls==='fighter')return lvl>=11?3:lvl>=5?2:1;if(['paladin','ranger','barbarian'].includes(cls))return lvl>=5?2:1;return 1;}
+  function sneakDmg(lvl){return rollN(Math.ceil(lvl/2),6);}
 
-let monsterRows=[],pcRows=[],mIdCtr=0,pcIdCtr=0;
-function addMonster(isBoss=false,data={}){
-  const id=mIdCtr++;
-  monsterRows.push({id,boss:isBoss||monsterRows.length===0,...data});
-  renderMonsterBuilder();
-}
-function removeMonster(id){
-  if(monsterRows.find(m=>m.id===id)?.boss){alert('Cannot remove boss.');return;}
-  monsterRows=monsterRows.filter(m=>m.id!==id);
-  renderMonsterBuilder();
-}
-function renderMonsterBuilder(){
-  const el=document.getElementById('monster-builder');
-  el.innerHTML=monsterRows.map(m=>{
-    const em=m.boss?MONSTER_EMOJI.boss:MONSTER_EMOJI.minion;
-    return `<div class="monster-card">
-      <div class="card-header">
-        <span>${em} ${m.boss?'Boss':'Minion'}<span class="boss-label">${m.boss?'boss':'minion'}</span></span>
-        ${!m.boss?`<button onclick="removeMonster(${m.id})" style="padding:3px 8px;font-size:11px;margin:0;">Remove</button>`:''}
-      </div>
-      <div class="row">
-        <div class="field"><label>Name</label><input id="mn-${m.id}" value="${m.name||(m.boss?'Boss':'Minion')}"/></div>
-        <div class="field"><label>AC</label><input id="mac-${m.id}" type="number" value="${m.ac||13}"/></div>
-        <div class="field"><label>HP</label><input id="mhp-${m.id}" type="number" value="${m.hp||(m.boss?50:10)}"/></div>
-        <div class="field"><label>Atk bonus</label><input id="matk-${m.id}" type="number" value="${m.atk||4}"/></div>
-        <div class="field"><label>Damage</label><input id="mdmg-${m.id}" value="${m.dmg||(m.boss?'1d8+2':'1d6+2')}"/></div>
-        <div class="field"><label>Attacks</label><input id="matts-${m.id}" type="number" value="${m.atts||1}"/></div>
-        <div class="field"><label>Type</label><select id="mtype-${m.id}"><option value="melee"${(m.type||'melee')==='melee'?' selected':''}>Melee</option><option value="ranged"${m.type==='ranged'?' selected':''}>Ranged</option></select></div>
-      </div>
-      ${m.boss?`<div style="margin-top:6px;font-size:10px;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Special ability — optional</div>
-      <div class="row3">
-        <div class="field"><label>Name (blank = none)</label><input id="saname-${m.id}" value="${m.saname||''}"/></div>
-        <div class="field"><label>Damage</label><input id="sadmg-${m.id}" value="${m.sadmg||'2d6+2'}"/></div>
-        <div class="field"><label>Save DC (0=auto)</label><input id="sadc-${m.id}" type="number" value="${m.sadc||0}"/></div>
-        <div class="field"><label>Targets</label><select id="sazone-${m.id}">
-          <option value="melee"${m.sazone==='melee'?' selected':''}>Melee zone</option>
-          <option value="back"${(!m.sazone||m.sazone==='back')?' selected':''}>Back zone</option>
-          <option value="all"${m.sazone==='all'?' selected':''}>All</option>
-        </select></div>
-        <div class="field"><label>Every N rounds</label><input id="saevery-${m.id}" type="number" value="${m.saevery||3}"/></div>
-      </div>`:''}
-    </div>`;}).join('');
-}
-function addPC(cls='Fighter'){
-  const id=pcIdCtr++;
-  const def=CLASSES.find(c=>c.name===cls)||CLASSES[0];
-  pcRows.push({id,cls:def.cls,zone:def.zone});
-  renderPartyBuilder();
-}
-function removePC(id){pcRows=pcRows.filter(p=>p.id!==id);renderPartyBuilder();}
-function updatePC(id,key,val){
-  const p=pcRows.find(p=>p.id===id);
-  if(p){p[key]=val;if(key==='cls'){const def=CLASSES.find(c=>c.cls===val);if(def)p.zone=def.zone;renderPartyBuilder();}}
-}
-function renderPartyBuilder(){
-  const el=document.getElementById('party-builder');
-  if(!pcRows.length){el.innerHTML='<div style="color:var(--color-text-secondary);font-size:12px;margin-bottom:8px;">No PCs.</div>';return;}
-  el.innerHTML=pcRows.map(p=>`
-    <div class="pc-row">
-      <div class="field"><label>Class</label>
-        <select onchange="updatePC(${p.id},'cls',this.value)">
-          ${CLASSES.map(c=>`<option value="${c.cls}"${c.cls===p.cls?' selected':''}>${CLASS_EMOJI[c.cls]} ${c.name}</option>`).join('')}
-        </select>
-      </div>
-      <div class="field"><label>Zone</label>
-        <select onchange="updatePC(${p.id},'zone',this.value)">
-          <option value="melee"${p.zone==='melee'?' selected':''}>Melee</option>
-          <option value="back"${p.zone==='back'?' selected':''}>Back</option>
-        </select>
-      </div>
-      <div class="field"><label>Override AC</label><input type="number" placeholder="auto" onchange="updatePC(${p.id},'acOverride',this.value?+this.value:null)"/></div>
-      <div class="field"><label>Override HP</label><input type="number" placeholder="auto" onchange="updatePC(${p.id},'hpOverride',this.value?+this.value:null)"/></div>
-      <button class="remove-btn" onclick="removePC(${p.id})">×</button>
-    </div>`).join('');
-}
-function readMonsters(){
-  return monsterRows.map(m=>({
-    id:m.id,boss:m.boss,
-    name:document.getElementById(`mn-${m.id}`)?.value||'Monster',
-    ac:+document.getElementById(`mac-${m.id}`)?.value||13,
-    hp:+document.getElementById(`mhp-${m.id}`)?.value||20,
-    atk:+document.getElementById(`matk-${m.id}`)?.value||4,
-    dmgStr:document.getElementById(`mdmg-${m.id}`)?.value||'1d6',
-    atts:+document.getElementById(`matts-${m.id}`)?.value||1,
-    type:document.getElementById(`mtype-${m.id}`)?.value||'melee',
-    saName:m.boss?(document.getElementById(`saname-${m.id}`)?.value||''):'',
-    saDmg:m.boss?(document.getElementById(`sadmg-${m.id}`)?.value||'2d6'):'',
-    saDC:m.boss?(+document.getElementById(`sadc-${m.id}`)?.value||0):0,
-    saZone:m.boss?(document.getElementById(`sazone-${m.id}`)?.value||'back'):'',
-    saEvery:m.boss?(+document.getElementById(`saevery-${m.id}`)?.value||3):3,
-  }));
-}
-function buildParty(lvl){
-  return pcRows.map(p=>{
-    const def=CLASSES.find(c=>c.cls===p.cls)||CLASSES[0];
-    const hp=p.hpOverride||hpForClass(p.cls,lvl);
-    const ac=p.acOverride||acForLevel(def.ac,lvl);
-    const sl=slotLvl(p.cls,lvl);
-    const allSpells=SPELLS[p.cls]||null;
+  function buildPC(pcCfg,lvl){
+    const def=DATA.CLASSES.find(c=>c.cls===pcCfg.cls)||DATA.CLASSES[0];
+    const hp=pcCfg.hpOverride||hpForClass(pcCfg.cls,lvl);
+    const ac=pcCfg.acOverride||acForLevel(def.ac,lvl);
+    const sl=DATA.slotLvl(pcCfg.cls,lvl);
+    const allSpells=DATA.SPELLS[pcCfg.cls]||null;
     const spells=allSpells?allSpells.filter(s=>s.minLvl<=lvl):null;
     return{
-      n:def.name,cls:p.cls,zone:p.zone,
-      em:CLASS_EMOJI[p.cls]||'',
+      name:def.name,cls:pcCfg.cls,zone:pcCfg.zone,
+      em:DATA.CLASS_EMOJI[pcCfg.cls]||'',
       hp,maxHp:hp,chp:hp,ac,
-      atk:atkForLevel(def.atkMod,lvl),dmg:def.dmg,atts:extraAtts(p.cls,lvl),
-      slots:spells&&spells.length?spellSlots(p.cls,lvl):0,
-      spells,sl,lvl,cantrip:CANTRIPS[p.cls]||null,
-      isHealer:['cleric','druid'].includes(p.cls),
+      atk:atkForLevel(def.atkMod,lvl),
+      dmgDie:def.dmgDie,dmgBonus:def.dmgBonus,
+      atts:extraAtks(pcCfg.cls,lvl),
+      slots:spells&&spells.length?DATA.spellSlots(pcCfg.cls,lvl):0,
+      spells,sl,lvl,
+      cantrip:DATA.CANTRIPS[pcCfg.cls]||null,
+      isHealer:['cleric','druid'].includes(pcCfg.cls),
       healUsed:false,surgeUsed:false,
       down:false,dead:false,deathSucc:0,deathFail:0,
     };
-  });
-}
+  }
 
-function snapParty(party){return party.map(p=>({...p}));}
-function snapMonsters(monsters){
-  return monsters.map(m=>({
-    ...m,meleePCs:[...m.meleePCs],
-    target:m.target?{n:m.target.n,zone:m.target.zone,dead:m.target.dead,down:m.target.down,chp:m.target.chp,em:m.target.em}:null,
-  }));
-}
+  function snapshot(monsters,party){
+    return{
+      monsters:monsters.map(m=>({name:m.name,em:m.em,chp:m.chp,hp:m.hp,dead:m.dead,boss:m.boss,meleePCs:[...m.meleePCs],targetName:m.target?m.target.name:null,targetZone:m.target?m.target.zone:null})),
+      party:party.map(p=>({name:p.name,em:p.em,chp:p.chp,maxHp:p.maxHp,dead:p.dead,down:p.down,zone:p.zone})),
+    };
+  }
 
-function buildBattlefield(monsters,party){
-  const livingMeleePCs=party.filter(p=>!p.dead&&p.zone==='melee');
-  const pcEngagedBy=new Map();
-  const engagedByMonster=new Map();
-  for(const m of monsters){
-    if(m.dead)continue;
-    const myMelee=livingMeleePCs.filter(p=>m.meleePCs.includes(p.n));
-    const engaged=[...myMelee];
-    if(m.target&&!m.target.dead&&m.target.zone==='back'){
-      const livePc=party.find(p=>p.n===m.target.n);
-      if(livePc&&!livePc.dead&&!engaged.find(p=>p.n===livePc.n)){
-        engaged.push(livePc);pcEngagedBy.set(livePc.n,m.id);
+  function pcAct(pc,livingM,party,emit){
+    if(pc.dead||pc.down)return;
+    if(!livingM().length)return;
+
+    if(pc.isHealer&&!pc.healUsed){
+      const downed=party.filter(p=>p.down&&!p.dead);
+      const wounded=party.filter(p=>!p.dead&&!p.down&&p.chp<p.maxHp*0.4);
+      const ht=downed[0]||wounded.sort((a,b)=>a.chp-b.chp)[0];
+      if(ht){
+        const amt=roll(8)+3;
+        ht.chp=Math.min(ht.maxHp,ht.chp+amt);
+        if(ht.down){ht.down=false;ht.deathSucc=0;ht.deathFail=0;}
+        pc.healUsed=true;
+        emit({type:'heal',healer:pc.name,target:ht.name,amt});
+        return;
       }
     }
-    engagedByMonster.set(m.id,engaged);
-  }
-  const clusters=[];const assigned=new Set();
-  for(const m of monsters){
-    if(assigned.has(m.id))continue;
-    const myPCs=engagedByMonster.get(m.id)||[];
-    const myKey=myPCs.map(p=>p.n).sort().join('|');
-    const cms=[m];assigned.add(m.id);
-    for(const m2 of monsters){
-      if(assigned.has(m2.id))continue;
-      const m2PCs=engagedByMonster.get(m2.id)||[];
-      if(m2PCs.map(p=>p.n).sort().join('|')===myKey){cms.push(m2);assigned.add(m2.id);}
+
+    const primaryTgt=()=>livingM().sort((a,b)=>b.chp-a.chp)[0];
+    let tgt=livingM().find(m=>m.target===pc)||primaryTgt();
+    if(!tgt||tgt.dead)tgt=primaryTgt();
+    if(!tgt)return;
+
+    let atts=pc.atts;
+    if(pc.cls==='fighter'&&!pc.surgeUsed&&livingM().some(m=>m.chp<m.hp*0.5)){
+      atts*=2;pc.surgeUsed=true;emit({type:'surge',caster:pc.name});
     }
-    const pcMap=new Map();
-    for(const m3 of cms){for(const p of(engagedByMonster.get(m3.id)||[])){pcMap.set(p.n,p);}}
-    clusters.push({monsters:cms,pcs:[...pcMap.values()]});
-  }
-  const engagedBackNames=new Set(pcEngagedBy.keys());
-  const backPCs=party.filter(p=>p.zone==='back'&&!engagedBackNames.has(p.n));
-  return{clusters,backPCs};
-}
 
-function renderBattlefield(monsters,party,round,action){
-  const el=document.getElementById('battlefield');
-  if(!el)return;
-  el.innerHTML='';
-  const rl=document.createElement('div');rl.className='round-label';
-  rl.textContent=round?`Round ${round}`:'Start';el.appendChild(rl);
-
-  const bf=buildBattlefield(monsters,party);
-
-  // Locate attacker and target clusters
-  let attackerClusterIdx=-1,targetClusterIdx=-1,targetInBack=false;
-  if(action){
-    for(let i=0;i<bf.clusters.length;i++){
-      if(action.attackerName){
-        if(bf.clusters[i].monsters.find(m=>m.name===action.attackerName))attackerClusterIdx=i;
-        if(bf.clusters[i].pcs.find(p=>p.n===action.attackerName))attackerClusterIdx=i;
-      }
-      if(action.targetName){
-        if(bf.clusters[i].monsters.find(m=>m.name===action.targetName))targetClusterIdx=i;
-        if(bf.clusters[i].pcs.find(p=>p.n===action.targetName))targetClusterIdx=i;
-      }
-    }
-    if(action.targetName&&targetClusterIdx<0&&bf.backPCs.find(p=>p.n===action.targetName))targetInBack=true;
-    if(action.attackerName&&attackerClusterIdx<0&&bf.backPCs.find(p=>p.n===action.attackerName))attackerClusterIdx=-2;// -2 = back zone
-  }
-
-  const isDeathFlash=(name)=>action?.isDeath&&action.targetName===name;
-  const isHit=(name)=>action?.hit&&action.targetName===name&&!action.isDeath;
-  const isCrit=(name)=>action?.crit&&action.targetName===name;
-  const isAttacker=(name)=>action?.attackerName===name;
-
-  const inner=document.createElement('div');inner.className='bf-inner';
-
-  // Melee clusters
-  const meleeSection=document.createElement('div');meleeSection.className='bf-section';
-  const ml=document.createElement('div');ml.className='bf-label';ml.textContent='Melee';
-  meleeSection.appendChild(ml);
-  const clustersDiv=document.createElement('div');clustersDiv.className='bf-clusters';
-
-  for(let ci=0;ci<bf.clusters.length;ci++){
-    const cluster=bf.clusters[ci];
-    const cd=document.createElement('div');cd.className='bf-cluster';
-
-    // Monster row
-    const mrow=document.createElement('div');mrow.className='bf-row';
-    for(const m of cluster.monsters){
-      const cw=makeCombatant(m.em,m.chp,m.hp,m.dead,false,isDeathFlash(m.name),isHit(m.name),isCrit(m.name),isAttacker(m.name)&&ci===attackerClusterIdx?action.actionEm:null,null);
-      if(cw)mrow.appendChild(cw);
-    }
-    cd.appendChild(mrow);
-
-    // Action row
-    const arow=document.createElement('div');arow.className='bf-action-row';
-    if(action&&ci===attackerClusterIdx&&attackerClusterIdx>=0)arow.textContent=action.actionEm;
-    cd.appendChild(arow);
-
-    // PC row
-    if(cluster.pcs.length){
-      const prow=document.createElement('div');prow.className='bf-row';
-      for(const p of cluster.pcs){
-        const cw=makeCombatant(p.em,p.chp,p.maxHp||p.hp,p.dead,p.down,isDeathFlash(p.n),isHit(p.n),isCrit(p.n),isAttacker(p.n)&&ci===attackerClusterIdx?action.actionEm:null,null);
-        if(cw)prow.appendChild(cw);
-      }
-      cd.appendChild(prow);
-    }
-    clustersDiv.appendChild(cd);
-  }
-  meleeSection.appendChild(clustersDiv);
-  inner.appendChild(meleeSection);
-
-  const dv=document.createElement('div');dv.className='bf-divider';inner.appendChild(dv);
-
-  // Back zone
-  const backSection=document.createElement('div');backSection.className='bf-section';
-  const bl=document.createElement('div');bl.className='bf-label';bl.textContent='Back';
-  backSection.appendChild(bl);
-  const brow=document.createElement('div');brow.className='bf-row';
-  // Action emoji in back if attacker is there
-  const backActionEm=(attackerClusterIdx===-2&&action)?action.actionEm:null;
-  for(const p of bf.backPCs){
-    const isBackAttacker=action&&action.attackerName===p.n&&attackerClusterIdx===-2;
-    const cw=makeCombatant(p.em,p.chp,p.maxHp||p.hp,p.dead,p.down,isDeathFlash(p.n),isHit(p.n),isCrit(p.n),false,isBackAttacker?action.actionEm:null);
-    if(cw){
-      if(isBackAttacker){
-        // Append action emoji beside the combatant widget
-        const wrapper=document.createElement('div');
-        wrapper.style.cssText='display:flex;flex-direction:column;align-items:center;';
-        wrapper.appendChild(cw);
-        const aeEl=document.createElement('div');aeEl.style.cssText='font-size:12px;text-align:center;';aeEl.textContent=action.actionEm;
-        wrapper.appendChild(aeEl);
-        brow.appendChild(wrapper);
-      } else {
-        brow.appendChild(cw);
-      }
-    }
-  }
-  // 💥 on back-zone target
-  if(action&&targetInBack&&action.hit){
-    // Find the PC and add hit indicator — already handled in makeCombatant via isHit
-  }
-  backSection.appendChild(brow);
-  inner.appendChild(backSection);
-  el.appendChild(inner);
-}
-
-function pcAct(pc,livingM,party,allLines){
-  if(pc.dead||pc.down)return;
-  if(!livingM().length)return;
-  if(pc.isHealer&&!pc.healUsed){
-    const downed=party.filter(p=>p.down&&!p.dead);
-    const wounded=party.filter(p=>!p.dead&&!p.down&&p.chp<p.maxHp*0.4);
-    const ht=downed[0]||wounded.sort((a,b)=>a.chp-b.chp)[0];
-    if(ht){
-      const amt=roll(8)+3;ht.chp=Math.min(ht.maxHp,ht.chp+amt);
-      if(ht.down){ht.down=false;ht.deathSucc=0;ht.deathFail=0;}
-      pc.healUsed=true;
-      allLines.push(`  ${pc.em} ${pc.n} heals ${ht.em} ${ht.n} for ${amt} [HP:${ht.chp}]`);
-      return;
-    }
-  }
-  const primaryTgt=()=>livingM().sort((a,b)=>b.chp-a.chp)[0];
-  let tgt=livingM().find(m=>m.target===pc)||primaryTgt();
-  if(!tgt||tgt.dead)tgt=primaryTgt();
-  if(!tgt)return;
-  let atts=pc.atts;
-  if(pc.cls==='fighter'&&!pc.surgeUsed&&livingM().some(m=>m.chp<m.hp*0.5)){
-    atts*=2;pc.surgeUsed=true;allLines.push(`  ${pc.em} Fighter: ACTION SURGE`);
-  }
-  if(pc.spells&&pc.spells.length&&pc.slots>0){
-    const spell=pc.spells[Math.floor(Math.random()*pc.spells.length)];
-    pc.slots--;
-    let d=spell.dmg(pc.sl,pc.lvl);
-    if(spell.save){const sv=roll(20)+2;if(sv>=spell.save)d=Math.floor(d/2);}
-    tgt.chp-=d;if(tgt.chp<=0)tgt.dead=true;
-    allLines.push(`  ${pc.em} ${pc.n} casts ${spell.name} at ${tgt.em} ${tgt.name}: ${d}dmg [HP:${Math.max(0,tgt.chp)}]${tgt.dead?' — DEAD':''}`);
-    if(spell.aoe&&spell.zone){
-      for(const t of party.filter(p=>!p.dead&&!p.down&&p.zone==='melee'&&p!==pc)){
-        const ffd=Math.floor(spell.dmg(pc.sl,pc.lvl)/2);t.chp-=ffd;
-        allLines.push(`    Friendly fire ${t.em} ${t.n}: ${ffd}dmg`);
-      }
-    }
-    tgt.target=pc;return;
-  }
-  if(pc.cantrip&&pc.spells){
-    const c=pc.cantrip,d=c.dmg(pc.lvl);
-    if(c.type==='attack'){
-      const ar=roll(20)+pc.atk,crit=ar-pc.atk===20;
-      if(ar>=tgt.ac||crit){
-        const total=crit?d+c.dmg(pc.lvl):d;
-        tgt.chp-=total;if(tgt.chp<=0)tgt.dead=true;
-        allLines.push(`  ${pc.em} ${pc.n} casts ${c.name} at ${tgt.em} ${tgt.name}${crit?' CRIT':''}: ${total}dmg [HP:${Math.max(0,tgt.chp)}]${tgt.dead?' — DEAD':''}`);
-        tgt.target=pc;
-      } else allLines.push(`  ${pc.em} ${pc.n} casts ${c.name} at ${tgt.em} ${tgt.name}: MISS (${ar})`);
-    } else {
-      const sv=roll(20)+2;
-      if(sv<c.dc){
-        tgt.chp-=d;if(tgt.chp<=0)tgt.dead=true;
-        allLines.push(`  ${pc.em} ${pc.n} casts ${c.name} at ${tgt.em} ${tgt.name}: ${d}dmg [HP:${Math.max(0,tgt.chp)}]${tgt.dead?' — DEAD':''}`);
-        tgt.target=pc;
-      } else allLines.push(`  ${pc.em} ${pc.n} casts ${c.name}: ${tgt.em} ${tgt.name} saves`);
-    }
-    return;
-  }
-  for(let a=0;a<atts;a++){
-    if(!livingM().length)break;
-    if(tgt.dead){tgt=primaryTgt();if(!tgt)break;}
-    let extra=0;
-    if(pc.cls==='rogue'&&Math.random()<0.35){extra=sneakDmg(pc.lvl);allLines.push(`  ${pc.em} Rogue: SNEAK ATTACK +${extra}`);}
-    const ar=roll(20)+pc.atk,crit=ar-pc.atk===20;
-    if(ar>=tgt.ac||crit){
-      let d=pc.dmg();if(crit)d+=pc.dmg();
-      tgt.chp-=d+extra;if(tgt.chp<=0)tgt.dead=true;
-      allLines.push(`  ${pc.em} ${pc.n} attacks ${tgt.em} ${tgt.name}: ${d+extra}dmg${crit?' CRIT':''} (${ar}) [HP:${Math.max(0,tgt.chp)}]${tgt.dead?' — DEAD':''}`);
-      tgt.target=pc;
-    } else allLines.push(`  ${pc.em} ${pc.n} attacks ${tgt.em} ${tgt.name}: MISS (${ar})`);
-  }
-}
-
-function sim(mCfgs,party,snapshots){
-  const monsters=mCfgs.map(m=>({
-    ...m,chp:m.hp,dmgFn:parseDmg(m.dmgStr),
-    saDmgFn:m.saName?parseDmg(m.saDmg):null,
-    em:m.boss?MONSTER_EMOJI.boss:MONSTER_EMOJI.minion,
-    dead:false,target:null,meleePCs:[],
-  }));
-  const meleePCs=party.filter(p=>p.zone==='melee');
-  meleePCs.forEach((p,i)=>monsters[i%monsters.length].meleePCs.push(p.n));
-  const allLines=[];let r=0;
-  const livingM=()=>monsters.filter(m=>!m.dead&&m.chp>0);
-  const livingP=()=>party.filter(p=>!p.dead&&!p.down&&p.chp>0);
-
-  // Snapshot after every log line push
-  function pushLine(line){
-    allLines.push(line);
-    if(snapshots)snapshots.push({round:r,monsters:snapMonsters(monsters),party:snapParty(party)});
-  }
-
-  while(r<200&&livingM().length>0&&party.some(p=>!p.dead)){
-    r++;
-    pushLine(`=== Round ${r} ===`);
-    const allLiving=livingP();
-    for(const m of livingM()){
-      let myMelee=allLiving.filter(p=>p.zone==='melee'&&m.meleePCs.includes(p.n));
-      if(!myMelee.length)myMelee=allLiving.filter(p=>p.zone==='melee');
-      const pool=myMelee.length?myMelee:allLiving.filter(p=>p.zone==='back');
-      if(!pool.length)continue;
-      if(!m.target||m.target.dead||m.target.down||m.target.chp<=0)
-        m.target=pool.slice().sort((a,b)=>b.chp-a.chp)[0];
-      if(m.saName&&r%m.saEvery===0){
-        pushLine(`  ${m.em} ${m.name} uses ${m.saName}!`);
-        const targets=m.saZone==='all'?allLiving:m.saZone==='melee'?allLiving.filter(p=>p.zone==='melee'):allLiving.filter(p=>p.zone==='back');
-        for(const t of targets){
-          let d=m.saDmgFn();
-          if(m.saDC>0){const sv=roll(20)+2;if(sv>=m.saDC)d=Math.floor(d/2);}
-          t.chp-=d;pushLine(`    ${t.em} ${t.n} takes ${d}dmg [HP:${Math.max(0,t.chp)}]`);
+    if(pc.spells&&pc.spells.length&&pc.slots>0){
+      const spell=pc.spells[Math.floor(Math.random()*pc.spells.length)];
+      pc.slots--;
+      let dmg=spell.dmg(pc.sl,pc.lvl);
+      const saved=spell.save&&(roll(20)+2>=spell.save);
+      if(saved)dmg=Math.floor(dmg/2);
+      tgt.chp-=dmg;
+      if(tgt.chp<=0)tgt.dead=true;
+      emit({type:'spell',caster:pc.name,spell:spell.name,target:tgt.name,hit:true,saved,dmg});
+      if(spell.aoe&&spell.zone==='melee'){
+        for(const t of party.filter(p=>!p.dead&&!p.down&&p.zone==='melee'&&p!==pc)){
+          const ffd=Math.floor(spell.dmg(pc.sl,pc.lvl)/2);
+          t.chp-=ffd;
+          emit({type:'friendly_fire',target:t.name,dmg:ffd});
         }
       }
-      let attsThisTurn=m.atts;
-      if(m.type==='melee'&&r===1)attsThisTurn=Math.max(1,attsThisTurn-1);
-      for(let a=0;a<attsThisTurn;a++){
-        if(!m.target||m.target.dead||m.target.down||m.target.chp<=0)break;
-        const ar=roll(20)+m.atk,crit=ar-m.atk===20;
-        if(ar>=m.target.ac||crit){
-          let d=m.dmgFn();if(crit)d+=m.dmgFn();
-          m.target.chp-=d;
-          pushLine(`  ${m.em} ${m.name} attacks ${m.target.em} ${m.target.n}: ${d}dmg${crit?' CRIT':''} (${ar}) [HP:${Math.max(0,m.target.chp)}]`);
-        } else pushLine(`  ${m.em} ${m.name} attacks ${m.target.em} ${m.target.n}: MISS (${ar})`);
-      }
+      tgt.target=pc;return;
     }
-    for(const p of party){
-      if(p.chp<=0&&!p.down&&!p.dead){p.down=true;p.chp=0;}
-      if(p.down&&!p.dead){
-        const ds=roll(20);
-        if(ds===20){p.chp=1;p.down=false;p.deathSucc=0;p.deathFail=0;pushLine(`  ${p.em} ${p.n}: miraculous recovery`);}
-        else if(ds>=10){p.deathSucc++;if(p.deathSucc>=3){p.down=false;p.chp=1;pushLine(`  ${p.em} ${p.n}: stabilized`);}}
-        else{p.deathFail++;if(p.deathFail>=3){p.dead=true;pushLine(`  ${p.em} ${p.n}: DEAD`);}}
-      }
-    }
-    if(!livingM().length)break;
-    for(const pc of party){if(!livingM().length)break;pcAct(pc,livingM,party,allLines,pushLine);}
-    const mS=monsters.map(m=>`${m.em}${m.name}:${m.dead?'DEAD':m.chp}`).join(' ');
-    const pS=party.map(p=>`${p.em}${p.n}:${p.dead?'DEAD':p.down?'DOWN':p.chp}`).join(' ');
-    pushLine(`  -- End round ${r} | ${mS} | ${pS}`);
-    pushLine('');
-  }
-  const monstersWon=livingM().length>0;
-  pushLine(`--- ${monstersWon?'Monsters win':'Party wins'} after ${r} rounds. Deaths: ${party.filter(p=>p.dead).length} ---`);
-  return{monstersWon,rounds:r,lines:allLines,deaths:party.filter(p=>p.dead).length};
-}
 
-// Patch pcAct to accept pushLine
-function pcActFull(pc,livingM,party,pushLine){
-  if(pc.dead||pc.down)return;
-  if(!livingM().length)return;
-  if(pc.isHealer&&!pc.healUsed){
-    const downed=party.filter(p=>p.down&&!p.dead);
-    const wounded=party.filter(p=>!p.dead&&!p.down&&p.chp<p.maxHp*0.4);
-    const ht=downed[0]||wounded.sort((a,b)=>a.chp-b.chp)[0];
-    if(ht){
-      const amt=roll(8)+3;ht.chp=Math.min(ht.maxHp,ht.chp+amt);
-      if(ht.down){ht.down=false;ht.deathSucc=0;ht.deathFail=0;}
-      pc.healUsed=true;pushLine(`  ${pc.em} ${pc.n} heals ${ht.em} ${ht.n} for ${amt} [HP:${ht.chp}]`);
+    if(pc.cantrip&&pc.spells){
+      const c=pc.cantrip,dmg=c.dmg(pc.lvl);
+      if(c.type==='attack'){
+        const ar=roll(20)+pc.atk,crit=ar-pc.atk===20;
+        if(ar>=tgt.ac||crit){
+          const total=crit?dmg+c.dmg(pc.lvl):dmg;
+          tgt.chp-=total;if(tgt.chp<=0)tgt.dead=true;
+          emit({type:'cantrip',caster:pc.name,spell:c.name,target:tgt.name,hit:true,crit,dmg:total});
+          tgt.target=pc;
+        }else{emit({type:'cantrip',caster:pc.name,spell:c.name,target:tgt.name,hit:false,crit:false,dmg:0});}
+      }else{
+        const sv=roll(20)+2;
+        if(sv<c.dc){
+          tgt.chp-=dmg;if(tgt.chp<=0)tgt.dead=true;
+          emit({type:'cantrip',caster:pc.name,spell:c.name,target:tgt.name,hit:true,crit:false,dmg});
+          tgt.target=pc;
+        }else{emit({type:'cantrip',caster:pc.name,spell:c.name,target:tgt.name,hit:false,crit:false,dmg:0});}
+      }
       return;
     }
-  }
-  const primaryTgt=()=>livingM().sort((a,b)=>b.chp-a.chp)[0];
-  let tgt=livingM().find(m=>m.target===pc)||primaryTgt();
-  if(!tgt||tgt.dead)tgt=primaryTgt();
-  if(!tgt)return;
-  let atts=pc.atts;
-  if(pc.cls==='fighter'&&!pc.surgeUsed&&livingM().some(m=>m.chp<m.hp*0.5)){
-    atts*=2;pc.surgeUsed=true;pushLine(`  ${pc.em} Fighter: ACTION SURGE`);
-  }
-  if(pc.spells&&pc.spells.length&&pc.slots>0){
-    const spell=pc.spells[Math.floor(Math.random()*pc.spells.length)];
-    pc.slots--;
-    let d=spell.dmg(pc.sl,pc.lvl);
-    if(spell.save){const sv=roll(20)+2;if(sv>=spell.save)d=Math.floor(d/2);}
-    tgt.chp-=d;if(tgt.chp<=0)tgt.dead=true;
-    pushLine(`  ${pc.em} ${pc.n} casts ${spell.name} at ${tgt.em} ${tgt.name}: ${d}dmg [HP:${Math.max(0,tgt.chp)}]${tgt.dead?' — DEAD':''}`);
-    if(spell.aoe&&spell.zone){
-      for(const t of party.filter(p=>!p.dead&&!p.down&&p.zone==='melee'&&p!==pc)){
-        const ffd=Math.floor(spell.dmg(pc.sl,pc.lvl)/2);t.chp-=ffd;
-        pushLine(`    Friendly fire ${t.em} ${t.n}: ${ffd}dmg`);
-      }
-    }
-    tgt.target=pc;return;
-  }
-  if(pc.cantrip&&pc.spells){
-    const c=pc.cantrip,d=c.dmg(pc.lvl);
-    if(c.type==='attack'){
+
+    for(let a=0;a<atts;a++){
+      if(!livingM().length)break;
+      if(tgt.dead){tgt=primaryTgt();if(!tgt)break;}
+      let extra=0;
+      if(pc.cls==='rogue'&&Math.random()<0.35){extra=sneakDmg(pc.lvl);emit({type:'sneak',rogue:pc.name,bonus:extra});}
       const ar=roll(20)+pc.atk,crit=ar-pc.atk===20;
       if(ar>=tgt.ac||crit){
-        const total=crit?d+c.dmg(pc.lvl):d;
-        tgt.chp-=total;if(tgt.chp<=0)tgt.dead=true;
-        pushLine(`  ${pc.em} ${pc.n} casts ${c.name} at ${tgt.em} ${tgt.name}${crit?' CRIT':''}: ${total}dmg [HP:${Math.max(0,tgt.chp)}]${tgt.dead?' — DEAD':''}`);
+        let dmg=rollN(1,pc.dmgDie)+pc.dmgBonus;
+        if(crit)dmg+=rollN(1,pc.dmgDie);
+        tgt.chp-=dmg+extra;if(tgt.chp<=0)tgt.dead=true;
+        emit({type:'attack',attacker:pc.name,target:tgt.name,hit:true,crit,dmg:dmg+extra,roll:ar});
         tgt.target=pc;
-      } else pushLine(`  ${pc.em} ${pc.n} casts ${c.name} at ${tgt.em} ${tgt.name}: MISS (${ar})`);
-    } else {
-      const sv=roll(20)+2;
-      if(sv<c.dc){
-        tgt.chp-=d;if(tgt.chp<=0)tgt.dead=true;
-        pushLine(`  ${pc.em} ${pc.n} casts ${c.name} at ${tgt.em} ${tgt.name}: ${d}dmg [HP:${Math.max(0,tgt.chp)}]${tgt.dead?' — DEAD':''}`);
-        tgt.target=pc;
-      } else pushLine(`  ${pc.em} ${pc.n} casts ${c.name}: ${tgt.em} ${tgt.name} saves`);
+      }else{emit({type:'attack',attacker:pc.name,target:tgt.name,hit:false,crit:false,dmg:0,roll:ar});}
     }
-    return;
   }
-  for(let a=0;a<atts;a++){
-    if(!livingM().length)break;
-    if(tgt.dead){tgt=primaryTgt();if(!tgt)break;}
-    let extra=0;
-    if(pc.cls==='rogue'&&Math.random()<0.35){extra=sneakDmg(pc.lvl);pushLine(`  ${pc.em} Rogue: SNEAK ATTACK +${extra}`);}
-    const ar=roll(20)+pc.atk,crit=ar-pc.atk===20;
-    if(ar>=tgt.ac||crit){
-      let d=pc.dmg();if(crit)d+=pc.dmg();
-      tgt.chp-=d+extra;if(tgt.chp<=0)tgt.dead=true;
-      pushLine(`  ${pc.em} ${pc.n} attacks ${tgt.em} ${tgt.name}: ${d+extra}dmg${crit?' CRIT':''} (${ar}) [HP:${Math.max(0,tgt.chp)}]${tgt.dead?' — DEAD':''}`);
-      tgt.target=pc;
-    } else pushLine(`  ${pc.em} ${pc.n} attacks ${tgt.em} ${tgt.name}: MISS (${ar})`);
-  }
-}
 
-function simFull(mCfgs,party,snapshots){
-  const monsters=mCfgs.map(m=>({
-    ...m,chp:m.hp,dmgFn:parseDmg(m.dmgStr),
-    saDmgFn:m.saName?parseDmg(m.saDmg):null,
-    em:m.boss?MONSTER_EMOJI.boss:MONSTER_EMOJI.minion,
-    dead:false,target:null,meleePCs:[],
-  }));
-  const meleePCs=party.filter(p=>p.zone==='melee');
-  meleePCs.forEach((p,i)=>monsters[i%monsters.length].meleePCs.push(p.n));
-  const allLines=[];let r=0;
-  const livingM=()=>monsters.filter(m=>!m.dead&&m.chp>0);
-  const livingP=()=>party.filter(p=>!p.dead&&!p.down&&p.chp>0);
-  function push(line){
-    allLines.push(line);
-    if(snapshots)snapshots.push({round:r,monsters:snapMonsters(monsters),party:snapParty(party)});
-  }
-  while(r<200&&livingM().length>0&&party.some(p=>!p.dead)){
-    r++;push(`=== Round ${r} ===`);
-    const allLiving=livingP();
-    for(const m of livingM()){
-      let myMelee=allLiving.filter(p=>p.zone==='melee'&&m.meleePCs.includes(p.n));
-      if(!myMelee.length)myMelee=allLiving.filter(p=>p.zone==='melee');
-      const pool=myMelee.length?myMelee:allLiving.filter(p=>p.zone==='back');
-      if(!pool.length)continue;
-      if(!m.target||m.target.dead||m.target.down||m.target.chp<=0)
-        m.target=pool.slice().sort((a,b)=>b.chp-a.chp)[0];
-      if(m.saName&&r%m.saEvery===0){
-        push(`  ${m.em} ${m.name} uses ${m.saName}!`);
-        const targets=m.saZone==='all'?allLiving:m.saZone==='melee'?allLiving.filter(p=>p.zone==='melee'):allLiving.filter(p=>p.zone==='back');
-        for(const t of targets){
-          let d=m.saDmgFn();
-          if(m.saDC>0){const sv=roll(20)+2;if(sv>=m.saDC)d=Math.floor(d/2);}
-          t.chp-=d;push(`    ${t.em} ${t.n} takes ${d}dmg [HP:${Math.max(0,t.chp)}]`);
+  function simulate(mCfgs,party){
+    const monsters=mCfgs.map(m=>({
+      ...m,chp:m.hp,
+      dmgFn:parseDmg(m.dmgStr),
+      saDmgFn:m.saName?parseDmg(m.saDmg):null,
+      em:m.boss?DATA.MONSTER_EMOJI.boss:DATA.MONSTER_EMOJI.minion,
+      dead:false,target:null,meleePCs:[],
+    }));
+
+    const meleePCs=party.filter(p=>p.zone==='melee');
+    meleePCs.forEach((p,i)=>monsters[i%monsters.length].meleePCs.push(p.name));
+
+    const events=[];let round=0;
+    const livingM=()=>monsters.filter(m=>!m.dead&&m.chp>0);
+    const livingP=()=>party.filter(p=>!p.dead&&!p.down&&p.chp>0);
+    function emit(ev){events.push({...ev,state:snapshot(monsters,party)});}
+
+    while(round<200&&livingM().length>0&&party.some(p=>!p.dead)){
+      round++;
+      emit({type:'round_start',round});
+      const allLiving=livingP();
+
+      for(const m of livingM()){
+        let myMelee=allLiving.filter(p=>p.zone==='melee'&&m.meleePCs.includes(p.name));
+        if(!myMelee.length)myMelee=allLiving.filter(p=>p.zone==='melee');
+        const pool=myMelee.length?myMelee:allLiving.filter(p=>p.zone==='back');
+        if(!pool.length)continue;
+        if(!m.target||m.target.dead||m.target.down||m.target.chp<=0)
+          m.target=pool.slice().sort((a,b)=>b.chp-a.chp)[0];
+
+        if(m.saName&&round%m.saEvery===0){
+          const targets=m.saZone==='all'?allLiving:m.saZone==='melee'?allLiving.filter(p=>p.zone==='melee'):allLiving.filter(p=>p.zone==='back');
+          const dmgs=targets.map(t=>{
+            let d=m.saDmgFn();
+            if(m.saDC>0&&roll(20)+2>=m.saDC)d=Math.floor(d/2);
+            t.chp-=d;return d;
+          });
+          emit({type:'special',attacker:m.name,ability:m.saName,targets:targets.map(t=>t.name),dmg:dmgs});
+        }
+
+        let attsThisTurn=m.atts;
+        if(m.type==='melee'&&round===1)attsThisTurn=Math.max(1,attsThisTurn-1);
+        for(let a=0;a<attsThisTurn;a++){
+          if(!m.target||m.target.dead||m.target.down||m.target.chp<=0)break;
+          const ar=roll(20)+m.atk,crit=ar-m.atk===20;
+          if(ar>=m.target.ac||crit){
+            let dmg=m.dmgFn();if(crit)dmg+=m.dmgFn();
+            m.target.chp-=dmg;
+            emit({type:'attack',attacker:m.name,target:m.target.name,hit:true,crit,dmg,roll:ar});
+          }else{emit({type:'attack',attacker:m.name,target:m.target.name,hit:false,crit:false,dmg:0,roll:ar});}
         }
       }
-      let attsThisTurn=m.atts;
-      if(m.type==='melee'&&r===1)attsThisTurn=Math.max(1,attsThisTurn-1);
-      for(let a=0;a<attsThisTurn;a++){
-        if(!m.target||m.target.dead||m.target.down||m.target.chp<=0)break;
-        const ar=roll(20)+m.atk,crit=ar-m.atk===20;
-        if(ar>=m.target.ac||crit){
-          let d=m.dmgFn();if(crit)d+=m.dmgFn();
-          m.target.chp-=d;
-          push(`  ${m.em} ${m.name} attacks ${m.target.em} ${m.target.n}: ${d}dmg${crit?' CRIT':''} (${ar}) [HP:${Math.max(0,m.target.chp)}]`);
-        } else push(`  ${m.em} ${m.name} attacks ${m.target.em} ${m.target.n}: MISS (${ar})`);
-      }
-    }
-    for(const p of party){
-      if(p.chp<=0&&!p.down&&!p.dead){p.down=true;p.chp=0;}
-      if(p.down&&!p.dead){
-        const ds=roll(20);
-        if(ds===20){p.chp=1;p.down=false;p.deathSucc=0;p.deathFail=0;push(`  ${p.em} ${p.n}: miraculous recovery`);}
-        else if(ds>=10){p.deathSucc++;if(p.deathSucc>=3){p.down=false;p.chp=1;push(`  ${p.em} ${p.n}: stabilized`);}}
-        else{p.deathFail++;if(p.deathFail>=3){p.dead=true;push(`  ${p.em} ${p.n}: DEAD`);}}
-      }
-    }
-    if(!livingM().length)break;
-    for(const pc of party){if(!livingM().length)break;pcActFull(pc,livingM,party,push);}
-    const mS=monsters.map(m=>`${m.em}${m.name}:${m.dead?'DEAD':m.chp}`).join(' ');
-    const pS=party.map(p=>`${p.em}${p.n}:${p.dead?'DEAD':p.down?'DOWN':p.chp}`).join(' ');
-    push(`  -- End round ${r} | ${mS} | ${pS}`);push('');
-  }
-  const monstersWon=livingM().length>0;
-  push(`--- ${monstersWon?'Monsters win':'Party wins'} after ${r} rounds. Deaths: ${party.filter(p=>p.dead).length} ---`);
-  return{monstersWon,rounds:r,lines:allLines,deaths:party.filter(p=>p.dead).length};
-}
 
-let watchLines=[],watchSnapshots=[],watchIdx=0,watchTimer=null,watchSpeed=500;
-function watchFight(){
-  const mCfgs=readMonsters();
-  const lvl=+document.getElementById('plevel').value;
-  if(!pcRows.length){alert('Add at least one PC.');return;}
-  const party=buildParty(lvl);
-  watchSnapshots=[];
-  const result=simFull(mCfgs,party,watchSnapshots);
-  watchLines=result.lines.filter(l=>l.trim());
-  // snapshots align 1:1 with allLines (before filter) — rebuild index map
-  watchIdx=0;
-  const out=document.getElementById('output');
-  out.innerHTML=`
-    <div id="battlefield" class="battlefield"></div>
-    <div class="ticker-box"><div class="ticker-line" id="ticker-text">...</div></div>
-    <div class="ticker-controls">
-      <button onclick="toggleWatch()" id="btn-play">Pause</button>
-      <button onclick="stepWatch(-1)">← Step</button>
-      <button onclick="stepWatch(1)">Step →</button>
-      <div class="speed-row"><span>Speed:</span>
-        <select onchange="setSpeed(this.value)" style="width:auto;padding:3px 6px;">
-          <option value="900">Slow</option>
-          <option value="500" selected>Normal</option>
-          <option value="250">Fast</option>
-          <option value="80">Very fast</option>
-        </select>
-      </div>
-      <span class="progress" id="watch-progress">1 / ${watchLines.length}</span>
-    </div>
-    <details style="margin-top:4px;">
-      <summary style="cursor:pointer;font-size:11px;color:var(--color-text-secondary);padding:4px 0;">Show full transcript</summary>
-      <div class="transcript-box"><pre>${watchLines.join('\n')}</pre></div>
-    </details>`;
-  if(watchSnapshots.length)renderBattlefield(watchSnapshots[0].monsters,watchSnapshots[0].party,0,null);
-  watchTimer=setInterval(()=>{
-    showWatchLine();
-    if(watchIdx>=watchLines.length){clearInterval(watchTimer);watchTimer=null;const b=document.getElementById('btn-play');if(b)b.textContent='Play';}
-  },watchSpeed);
-}
-function showWatchLine(){
-  const el=document.getElementById('ticker-text');
-  const prog=document.getElementById('watch-progress');
-  if(!el||watchIdx>=watchLines.length)return;
-  const line=watchLines[watchIdx];
-  const idx=watchIdx;
-  // Find matching snapshot by scanning for this line in the full (unfiltered) snapshot array
-  const snap=watchSnapshots[idx]||watchSnapshots[watchSnapshots.length-1];
-  if(snap){
-    const action=parseAction(line,snap.monsters,snap.party);
-    renderBattlefield(snap.monsters,snap.party,snap.round,action);
-  }
-  el.classList.add('fade');
-  setTimeout(()=>{
-    if(document.getElementById('ticker-text')===el){
-      el.textContent=line;el.classList.remove('fade');
-      if(prog)prog.textContent=`${idx+1} / ${watchLines.length}`;
+      for(const p of party){
+        if(p.chp<=0&&!p.down&&!p.dead){p.down=true;p.chp=0;emit({type:'down',name:p.name});}
+        if(p.down&&!p.dead){
+          const ds=roll(20);
+          if(ds===20){p.chp=1;p.down=false;p.deathSucc=0;p.deathFail=0;emit({type:'recovery',name:p.name});}
+          else if(ds>=10){p.deathSucc++;if(p.deathSucc>=3){p.down=false;p.chp=1;emit({type:'stabilized',name:p.name});}}
+          else{p.deathFail++;if(p.deathFail>=3){p.dead=true;emit({type:'death',name:p.name});}}
+        }
+      }
+
+      if(!livingM().length)break;
+      for(const pc of party){if(!livingM().length)break;pcAct(pc,livingM,party,emit);}
+      emit({type:'round_end',round});
     }
-  },150);
-  watchIdx++;
-}
-function toggleWatch(){
-  const btn=document.getElementById('btn-play');
-  if(watchTimer){clearInterval(watchTimer);watchTimer=null;if(btn)btn.textContent='Play';}
-  else{
-    if(watchIdx>=watchLines.length)watchIdx=0;
-    if(btn)btn.textContent='Pause';
-    watchTimer=setInterval(()=>{
-      showWatchLine();
-      if(watchIdx>=watchLines.length){clearInterval(watchTimer);watchTimer=null;const b=document.getElementById('btn-play');if(b)b.textContent='Play';}
-    },watchSpeed);
+
+    const monstersWon=livingM().length>0;
+    emit({type:'combat_end',monstersWon,rounds:round,deaths:party.filter(p=>p.dead).length});
+    return{monstersWon,rounds:round,deaths:party.filter(p=>p.dead).length,events};
   }
-}
-function stepWatch(dir){
-  if(watchTimer){clearInterval(watchTimer);watchTimer=null;const b=document.getElementById('btn-play');if(b)b.textContent='Play';}
-  if(dir<0)watchIdx=Math.max(0,watchIdx-2);
-  showWatchLine();
-}
-function setSpeed(v){
-  watchSpeed=+v;
-  if(watchTimer){
-    clearInterval(watchTimer);
-    watchTimer=setInterval(()=>{
-      showWatchLine();
-      if(watchIdx>=watchLines.length){clearInterval(watchTimer);watchTimer=null;const b=document.getElementById('btn-play');if(b)b.textContent='Play';}
-    },watchSpeed);
+
+  return{roll,rollN,simulate,buildPC};
+})();
+
+// ============================================================
+// UI
+// ============================================================
+const UI = (() => {
+  let monsterRows=[],pcRows=[],mIdCtr=0,pcIdCtr=0;
+  let watchEvents=[],watchIdx=0,watchTimer=null,watchSpeed=500;
+
+  // ── Event → transcript text ──────────────────────────────
+  function eventToText(ev){
+    const em=(name,state)=>{
+      const m=state.monsters.find(x=>x.name===name);if(m)return m.em;
+      const p=state.party.find(x=>x.name===name);return p?p.em:'';
+    };
+    switch(ev.type){
+      case 'round_start':  return `=== Round ${ev.round} ===`;
+      case 'round_end':    return '';
+      case 'combat_end':   return `--- ${ev.monstersWon?'Monsters win':'Party wins'} after ${ev.rounds} rounds. Deaths: ${ev.deaths} ---`;
+      case 'attack':       return ev.hit
+        ? `  ${em(ev.attacker,ev.state)} ${ev.attacker} attacks ${em(ev.target,ev.state)} ${ev.target}: ${ev.dmg}dmg${ev.crit?' CRIT':''} (${ev.roll})`
+        : `  ${em(ev.attacker,ev.state)} ${ev.attacker} attacks ${em(ev.target,ev.state)} ${ev.target}: MISS (${ev.roll})`;
+      case 'spell':        return `  ${em(ev.caster,ev.state)} ${ev.caster} casts ${ev.spell} at ${em(ev.target,ev.state)} ${ev.target}: ${ev.dmg}dmg${ev.saved?' (saved)':''}`;
+      case 'cantrip':      return ev.hit
+        ? `  ${em(ev.caster,ev.state)} ${ev.caster} casts ${ev.spell} at ${em(ev.target,ev.state)} ${ev.target}: ${ev.dmg}dmg${ev.crit?' CRIT':''}`
+        : `  ${em(ev.caster,ev.state)} ${ev.caster} casts ${ev.spell} at ${em(ev.target,ev.state)} ${ev.target}: MISS`;
+      case 'heal':         return `  ${em(ev.healer,ev.state)} ${ev.healer} heals ${em(ev.target,ev.state)} ${ev.target} for ${ev.amt}`;
+      case 'special':      return `  ${em(ev.attacker,ev.state)} ${ev.attacker} uses ${ev.ability}! → ${ev.targets.map((t,i)=>`${em(t,ev.state)}${t}:${ev.dmg[i]}dmg`).join(', ')}`;
+      case 'friendly_fire':return `    Friendly fire ${em(ev.target,ev.state)} ${ev.target}: ${ev.dmg}dmg`;
+      case 'surge':        return `  ⚡ ${ev.caster}: ACTION SURGE`;
+      case 'sneak':        return `  🗡️ Rogue: SNEAK ATTACK +${ev.bonus}`;
+      Not complete — got cut off again at the UI section. Continuing from the `sneak` case:
+
+```javascript
+      case 'down':         return `  ${em(ev.name,ev.state)} ${ev.name}: DOWN`;
+      case 'death':        return `  ${em(ev.name,ev.state)} ${ev.name}: DEAD`;
+      case 'recovery':     return `  ${em(ev.name,ev.state)} ${ev.name}: miraculous recovery`;
+      case 'stabilized':   return `  ${em(ev.name,ev.state)} ${ev.name}: stabilized`;
+      default:             return '';
+    }
   }
-}
-function runSims(){
-  const mCfgs=readMonsters();
-  const lvl=+document.getElementById('plevel').value;
-  const N=+document.getElementById('nsims').value||100;
-  if(!pcRows.length){document.getElementById('output').innerHTML='<div style="color:var(--color-text-secondary);">Add at least one PC.</div>';return;}
-  let wins=0,totalRounds=0,totalDeaths=0;
-  for(let i=0;i<N;i++){
+
+  // ── HP bar color ─────────────────────────────────────────
+  function hpColor(pct){return pct>0.5?'#639922':pct>0.25?'#BA7517':'#A32D2D';}
+
+  // ── Build combatant widget ────────────────────────────────
+  function makeCombatant(em,chp,maxHp,dead,down,isDeathFlash,isHit,isCrit,actionEm){
+    if(dead&&!isDeathFlash)return null;
+    const wrap=document.createElement('div');wrap.className='combatant';
+    const emEl=document.createElement('div');emEl.className='combatant-em';
+    if(isDeathFlash){emEl.textContent=em+'💀';}
+    else{let label=em;if(isHit)label+=isCrit?'💥💥':'💥';if(actionEm)label+=actionEm;emEl.textContent=label;emEl.style.opacity=down?'0.5':'1';}
+    wrap.appendChild(emEl);
+    if(!dead&&!down&&!isDeathFlash&&maxHp>0){
+      const pct=Math.max(0,Math.min(1,chp/maxHp));
+      const bw=document.createElement('div');bw.className='hp-bar-wrap';
+      const b=document.createElement('div');b.className='hp-bar';
+      b.style.width=Math.round(pct*100)+'%';b.style.background=hpColor(pct);
+      bw.appendChild(b);wrap.appendChild(bw);
+    }
+    return wrap;
+  }
+
+  // ── Build battlefield clusters from state ─────────────────
+  function buildClusters(state){
+    const {monsters,party}=state;
+    const livingM=monsters.filter(m=>!m.dead);
+    const clusters=[];const assigned=new Set();
+    for(const m of livingM){
+      if(assigned.has(m.name))continue;
+      const myPCNames=m.meleePCs;
+      const cms=[m];assigned.add(m.name);
+      for(const m2 of livingM){
+        if(assigned.has(m2.name))continue;
+        if(JSON.stringify(m2.meleePCs.slice().sort())===JSON.stringify(myPCNames.slice().sort())){
+          cms.push(m2);assigned.add(m2.name);
+        }
+      }
+      const pcMap=new Map();
+      for(const mc of cms){for(const pn of mc.meleePCs){const p=party.find(x=>x.name===pn);if(p)pcMap.set(p.name,p);}}
+      // Also include target if in back zone and targeting this cluster
+      for(const mc of cms){
+        if(mc.targetName&&mc.targetZone==='back'){
+          const p=party.find(x=>x.name===mc.targetName);
+          if(p&&!p.dead)pcMap.set(p.name,p);
+        }
+      }
+      clusters.push({monsters:cms,pcs:[...pcMap.values()]});
+    }
+    const engagedNames=new Set(clusters.flatMap(c=>c.pcs.map(p=>p.name)));
+    const backPCs=party.filter(p=>p.zone==='back'&&!engagedNames.has(p.name));
+    return{clusters,backPCs};
+  }
+
+  // ── Render battlefield ────────────────────────────────────
+  function renderBattlefield(el,ev){
+    el.innerHTML='';
+    const state=ev.state;
+    const rl=document.createElement('div');rl.className='round-label';
+    rl.textContent=ev.type==='round_start'?`Round ${ev.round}`:(ev.round?`Round ${ev.round}`:'');
+    el.appendChild(rl);
+
+    const {clusters,backPCs}=buildClusters(state);
+    const inner=document.createElement('div');inner.className='bf-inner';
+
+    // Determine hit/death targets from this event
+    const hitTarget   = (ev.type==='attack'||ev.type==='spell'||ev.type==='cantrip')&&ev.hit ? ev.target : null;
+    const critTarget  = hitTarget&&ev.crit ? ev.target : null;
+    const deathTarget = ev.type==='death' ? ev.name : null;
+    const attacker    = ev.attacker||ev.caster||null;
+    const actionEm    = getActionEmoji(ev);
+
+    // Melee section
+    const meleeSection=document.createElement('div');meleeSection.className='bf-section';
+    const ml=document.createElement('div');ml.className='bf-label';ml.textContent='Melee';
+    meleeSection.appendChild(ml);
+    const clustersDiv=document.createElement('div');clustersDiv.className='bf-clusters';
+    for(const cluster of clusters){
+      const cd=document.createElement('div');cd.className='bf-cluster';
+      const mrow=document.createElement('div');mrow.className='bf-row';
+      for(const m of cluster.monsters){
+        const isDeath=deathTarget===m.name;
+        const cw=makeCombatant(m.em,m.chp,m.hp,m.dead,false,isDeath,hitTarget===m.name&&!isDeath,critTarget===m.name,attacker===m.name?actionEm:null);
+        if(cw)mrow.appendChild(cw);
+      }
+      cd.appendChild(mrow);
+      if(cluster.pcs.length){
+        const prow=document.createElement('div');prow.className='bf-row';
+        for(const p of cluster.pcs){
+          const isDeath=deathTarget===p.name;
+          const cw=makeCombatant(p.em,p.chp,p.maxHp,p.dead,p.down,isDeath,hitTarget===p.name&&!isDeath,critTarget===p.name,attacker===p.name?actionEm:null);
+          if(cw)prow.appendChild(cw);
+        }
+        cd.appendChild(prow);
+      }
+      clustersDiv.appendChild(cd);
+    }
+    meleeSection.appendChild(clustersDiv);
+    inner.appendChild(meleeSection);
+
+    const dv=document.createElement('div');dv.className='bf-divider';inner.appendChild(dv);
+
+    // Back section
+    const backSection=document.createElement('div');backSection.className='bf-section';
+    const bl=document.createElement('div');bl.className='bf-label';bl.textContent='Back';
+    backSection.appendChild(bl);
+    const brow=document.createElement('div');brow.className='bf-row';
+    for(const p of backPCs){
+      const isDeath=deathTarget===p.name;
+      const cw=makeCombatant(p.em,p.chp,p.maxHp,p.dead,p.down,isDeath,hitTarget===p.name&&!isDeath,critTarget===p.name,attacker===p.name?actionEm:null);
+      if(cw)brow.appendChild(cw);
+    }
+    backSection.appendChild(brow);
+    inner.appendChild(backSection);
+    el.appendChild(inner);
+  }
+
+  function getActionEmoji(ev){
+    if(!ev)return null;
+    if(ev.type==='attack'){
+      // Determine if attacker is monster or PC
+      return '⚔️';
+    }
+    if(ev.type==='spell'||ev.type==='cantrip')return '✨';
+    if(ev.type==='heal')return '💚';
+    if(ev.type==='special')return '💥';
+    return null;
+  }
+
+  // ── Monster builder ───────────────────────────────────────
+  function addMonster(isBoss=false,data={}){
+    const id=mIdCtr++;
+    monsterRows.push({id,boss:isBoss||monsterRows.length===0,...data});
+    renderMonsterBuilder();
+  }
+
+  function removeMonster(id){
+    if(monsterRows.find(m=>m.id===id)?.boss){alert('Cannot remove boss.');return;}
+    monsterRows=monsterRows.filter(m=>m.id!==id);
+    renderMonsterBuilder();
+  }
+
+  function renderMonsterBuilder(){
+    const el=document.getElementById('monster-builder');
+    el.innerHTML=monsterRows.map(m=>{
+      const em=m.boss?DATA.MONSTER_EMOJI.boss:DATA.MONSTER_EMOJI.minion;
+      return `<div class="monster-card">
+        <div class="card-header">
+          <span>${em} ${m.boss?'Boss':'Minion'}<span class="boss-label">${m.boss?'boss':'minion'}</span></span>
+          ${!m.boss?`<button onclick="UI.removeMonster(${m.id})" style="padding:3px 8px;font-size:11px;margin:0;">Remove</button>`:''}
+        </div>
+        <div class="row">
+          <div class="field"><label>Name</label><input id="mn-${m.id}" value="${m.name||(m.boss?'Boss':'Minion')}"/></div>
+          <div class="field"><label>AC</label><input id="mac-${m.id}" type="number" value="${m.ac||13}"/></div>
+          <div class="field"><label>HP</label><input id="mhp-${m.id}" type="number" value="${m.hp||(m.boss?50:10)}"/></div>
+          <div class="field"><label>Atk bonus</label><input id="matk-${m.id}" type="number" value="${m.atk||4}"/></div>
+          <div class="field"><label>Damage</label><input id="mdmg-${m.id}" value="${m.dmg||(m.boss?'1d8+2':'1d6+2')}"/></div>
+          <div class="field"><label>Attacks</label><input id="matts-${m.id}" type="number" value="${m.atts||1}"/></div>
+          <div class="field"><label>Type</label><select id="mtype-${m.id}">
+            <option value="melee"${(m.type||'melee')==='melee'?' selected':''}>Melee</option>
+            <option value="ranged"${m.type==='ranged'?' selected':''}>Ranged</option>
+          </select></div>
+        </div>
+        ${m.boss?`<div style="margin-top:6px;font-size:10px;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Special ability — optional</div>
+        <div class="row3">
+          <div class="field"><label>Name (blank = none)</label><input id="saname-${m.id}" value="${m.saname||''}"/></div>
+          <div class="field"><label>Damage</label><input id="sadmg-${m.id}" value="${m.sadmg||'2d6+2'}"/></div>
+          <div class="field"><label>Save DC (0=auto)</label><input id="sadc-${m.id}" type="number" value="${m.sadc||0}"/></div>
+          <div class="field"><label>Targets</label><select id="sazone-${m.id}">
+            <option value="melee"${m.sazone==='melee'?' selected':''}>Melee zone</option>
+            <option value="back"${(!m.sazone||m.sazone==='back')?' selected':''}>Back zone</option>
+            <option value="all"${m.sazone==='all'?' selected':''}>All</option>
+          </select></div>
+          <div class="field"><label>Every N rounds</label><input id="saevery-${m.id}" type="number" value="${m.saevery||3}"/></div>
+        </div>`:''}
+      </div>`;
+    }).join('');
+  }
+
+  // ── Party builder ─────────────────────────────────────────
+  function addPC(cls='Fighter'){
+    const id=pcIdCtr++;
+    const def=DATA.CLASSES.find(c=>c.name===cls)||DATA.CLASSES[0];
+    pcRows.push({id,cls:def.cls,zone:def.zone});
+    renderPartyBuilder();
+  }
+
+  function removePC(id){pcRows=pcRows.filter(p=>p.id!==id);renderPartyBuilder();}
+
+  function updatePC(id,key,val){
+    const p=pcRows.find(p=>p.id===id);
+    if(p){p[key]=val;if(key==='cls'){const def=DATA.CLASSES.find(c=>c.cls===val);if(def)p.zone=def.zone;renderPartyBuilder();}}
+  }
+
+  function renderPartyBuilder(){
+    const el=document.getElementById('party-builder');
+    if(!pcRows.length){el.innerHTML='<div style="color:var(--color-text-secondary);font-size:12px;margin-bottom:8px;">No PCs.</div>';return;}
+    el.innerHTML=pcRows.map(p=>`
+      <div class="pc-row">
+        <div class="field"><label>Class</label>
+          <select onchange="UI.updatePC(${p.id},'cls',this.value)">
+            ${DATA.CLASSES.map(c=>`<option value="${c.cls}"${c.cls===p.cls?' selected':''}>${DATA.CLASS_EMOJI[c.cls]} ${c.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Zone</label>
+          <select onchange="UI.updatePC(${p.id},'zone',this.value)">
+            <option value="melee"${p.zone==='melee'?' selected':''}>Melee</option>
+            <option value="back"${p.zone==='back'?' selected':''}>Back</option>
+          </select>
+        </div>
+        <div class="field"><label>Override AC</label><input type="number" placeholder="auto" onchange="UI.updatePC(${p.id},'acOverride',this.value?+this.value:null)"/></div>
+        <div class="field"><label>Override HP</label><input type="number" placeholder="auto" onchange="UI.updatePC(${p.id},'hpOverride',this.value?+this.value:null)"/></div>
+        <button class="remove-btn" onclick="UI.removePC(${p.id})">×</button>
+      </div>`).join('');
+  }
+
+  // ── Read form values ──────────────────────────────────────
+  function readMonsters(){
+    return monsterRows.map(m=>({
+      id:m.id,boss:m.boss,
+      name:document.getElementById(`mn-${m.id}`)?.value||'Monster',
+      ac:+document.getElementById(`mac-${m.id}`)?.value||13,
+      hp:+document.getElementById(`mhp-${m.id}`)?.value||20,
+      atk:+document.getElementById(`matk-${m.id}`)?.value||4,
+      dmgStr:document.getElementById(`mdmg-${m.id}`)?.value||'1d6',
+      atts:+document.getElementById(`matts-${m.id}`)?.value||1,
+      type:document.getElementById(`mtype-${m.id}`)?.value||'melee',
+      saName:m.boss?(document.getElementById(`saname-${m.id}`)?.value||''):'',
+      saDmg:m.boss?(document.getElementById(`sadmg-${m.id}`)?.value||'2d6'):'',
+      saDC:m.boss?(+document.getElementById(`sadc-${m.id}`)?.value||0):0,
+      saZone:m.boss?(document.getElementById(`sazone-${m.id}`)?.value||'back'):'',
+      saEvery:m.boss?(+document.getElementById(`saevery-${m.id}`)?.value||3):3,
+    }));
+  }
+
+  function buildParty(lvl){
+    return pcRows.map(p=>ENGINE.buildPC(p,lvl));
+  }
+
+  // ── Run simulations ───────────────────────────────────────
+  function runSims(){
+    const mCfgs=readMonsters();
+    const lvl=+document.getElementById('plevel').value;
+    const N=+document.getElementById('nsims').value||100;
+    if(!pcRows.length){document.getElementById('output').innerHTML='<div style="color:var(--color-text-secondary);">Add at least one PC.</div>';return;}
+    let wins=0,totalRounds=0,totalDeaths=0;
+    for(let i=0;i<N;i++){
+      const party=buildParty(lvl);
+      const r=ENGINE.simulate(mCfgs,party);
+      if(!r.monstersWon)wins++;
+      totalRounds+=r.rounds;totalDeaths+=r.deaths;
+    }
+    const pwPct=((wins/N)*100).toFixed(1);
+    const ar=(totalRounds/N).toFixed(1);
+    const ad=(totalDeaths/N).toFixed(1);
+    const partyDesc=pcRows.map(p=>{const def=DATA.CLASSES.find(c=>c.cls===p.cls);return `${DATA.CLASS_EMOJI[p.cls]||''} ${def.name}<span class="zone-tag">${p.zone}</span>`;}).join(' ');
+    const encounterDesc=readMonsters().map(m=>`${m.boss?DATA.MONSTER_EMOJI.boss:DATA.MONSTER_EMOJI.minion} ${m.name}`).join(' + ');
+    document.getElementById('output').innerHTML=`
+      <div class="result-card">
+        <div class="header-meta">${encounterDesc} vs level ${lvl} party — ${N} simulations</div>
+        <div class="party-tags">${partyDesc}</div>
+        <div class="stat-row">
+          <div class="stat"><span class="stat-val ${wins/N>=0.5?'win':'lose'}">${pwPct}%</span><span class="stat-lbl">Party win rate</span></div>
+          <div class="stat"><span class="stat-val">${wins}W / ${N-wins}L</span><span class="stat-lbl">Record</span></div>
+          <div class="stat"><span class="stat-val">${ar}</span><span class="stat-lbl">Avg rounds</span></div>
+          <div class="stat"><span class="stat-val">${ad}</span><span class="stat-lbl">Avg deaths</span></div>
+        </div>
+      </div>`;
+  }
+
+  // ── Watch fight ───────────────────────────────────────────
+  function watchFight(){
+    const mCfgs=readMonsters();
+    const lvl=+document.getElementById('plevel').value;
+    if(!pcRows.length){alert('Add at least one PC.');return;}
     const party=buildParty(lvl);
-    const r=simFull(mCfgs,party,null);
-    if(!r.monstersWon)wins++;
-    totalRounds+=r.rounds;totalDeaths+=r.deaths;
-  }
-  const pwPct=((wins/N)*100).toFixed(1);
-  const ar=(totalRounds/N).toFixed(1);
-  const ad=(totalDeaths/N).toFixed(1);
-  const partyDesc=pcRows.map(p=>{const def=CLASSES.find(c=>c.cls===p.cls);return `${CLASS_EMOJI[p.cls]||''} ${def.name}<span class="zone-tag">${p.zone}</span>`;}).join(' ');
-  const encounterDesc=readMonsters().map(m=>`${m.boss?MONSTER_EMOJI.boss:MONSTER_EMOJI.minion} ${m.name}`).join(' + ');
-  document.getElementById('output').innerHTML=`
-    <div class="result-card">
-      <div class="header-meta">${encounterDesc} vs level ${lvl} party — ${N} simulations</div>
-      <div class="party-tags">${partyDesc}</div>
-      <div class="stat-row">
-        <div class="stat"><span class="stat-val ${wins/N>=0.5?'win':'lose'}">${pwPct}%</span><span class="stat-lbl">Party win rate</span></div>
-        <div class="stat"><span class="stat-val">${wins}W / ${N-wins}L</span><span class="stat-lbl">Record</span></div>
-        <div class="stat"><span class="stat-val">${ar}</span><span class="stat-lbl">Avg rounds</span></div>
-        <div class="stat"><span class="stat-val">${ad}</span><span class="stat-lbl">Avg deaths</span></div>
+    const result=ENGINE.simulate(mCfgs,party);
+    watchEvents=result.events.filter(ev=>ev.type!=='round_end'&&eventToText(ev)!=='');
+    watchIdx=0;
+    const out=document.getElementById('output');
+    const transcript=result.events.map(ev=>eventToText(ev)).filter(t=>t!=='').join('\n');
+    out.innerHTML=`
+      <div id="battlefield" class="battlefield"></div>
+      <div class="ticker-box"><div class="ticker-line" id="ticker-text">...</div></div>
+      <div class="ticker-controls">
+        <button onclick="UI.toggleWatch()" id="btn-play">Pause</button>
+        <button onclick="UI.stepWatch(-1)">← Step</button>
+        <button onclick="UI.stepWatch(1)">Step →</button>
+        <div class="speed-row"><span>Speed:</span>
+          <select onchange="UI.setSpeed(this.value)" style="width:auto;padding:3px 6px;">
+            <option value="900">Slow</option>
+            <option value="500" selected>Normal</option>
+            <option value="250">Fast</option>
+            <option value="80">Very fast</option>
+          </select>
+        </div>
+        <span class="progress" id="watch-progress">1 / ${watchEvents.length}</span>
       </div>
-    </div>`;
-}
-function saveEncounter(){
-  const mCfgs=readMonsters();
-  try{localStorage.setItem('playtester_encounter',JSON.stringify({monsters:mCfgs}));alert('Saved.');}
-  catch(e){alert('Storage unavailable.');}
-}
-function loadEncounter(){
-  try{
-    const raw=localStorage.getItem('playtester_encounter');
-    if(!raw){alert('No saved encounter.');return;}
-    const data=JSON.parse(raw);
-    monsterRows=[];mIdCtr=0;
-    data.monsters.forEach(m=>addMonster(m.boss,{name:m.name,ac:m.ac,hp:m.hp,atk:m.atk,dmg:m.dmgStr,atts:m.atts,type:m.type,saname:m.saName,sadmg:m.saDmg,sadc:m.saDC,sazone:m.saZone,saevery:m.saEvery}));
-    alert('Loaded.');
-  }catch(e){alert('Failed to load.');}
-}
-addMonster(true,{name:'Capricorn-Garnet',ac:17,hp:50,atk:5,dmg:'1d8+2',atts:1,type:'melee',saname:'Horn Gore',sadmg:'2d6+2',sadc:0,sazone:'back',saevery:3});
-addPC('Fighter');addPC('Cleric');addPC('Rogue');addPC('Wizard');
+      <details style="margin-top:4px;">
+        <summary style="cursor:pointer;font-size:11px;color:var(--color-text-secondary);padding:4px 0;">Show full transcript</summary>
+        <div class="transcript-box"><pre>${transcript}</pre></div>
+      </details>`;
+    if(watchEvents.length)renderBattlefield(document.getElementById('battlefield'),watchEvents[0]);
+    watchTimer=setInterval(()=>{
+      showWatchStep();
+      if(watchIdx>=watchEvents.length){clearInterval(watchTimer);watchTimer=null;const b=document.getElementById('btn-play');if(b)b.textContent='Play';}
+    },watchSpeed);
+  }
+
+  function showWatchStep(){
+    const el=document.getElementById('ticker-text');
+    const prog=document.getElementById('watch-progress');
+    if(!el||watchIdx>=watchEvents.length)return;
+    const ev=watchEvents[watchIdx];
+    const bf=document.getElementById('battlefield');
+    if(bf)renderBattlefield(bf,ev);
+    const line=eventToText(ev);
+    el.classList.add('fade');
+    setTimeout(()=>{
+      if(document.getElementById('ticker-text')===el){
+        el.textContent=line||'·';el.classList.remove('fade');
+        if(prog)prog.textContent=`${watchIdx+1} / ${watchEvents.length}`;
+      }
+    },150);
+    watchIdx++;
+  }
+
+  function toggleWatch(){
+    const btn=document.getElementById('btn-play');
+    if(watchTimer){clearInterval(watchTimer);watchTimer=null;if(btn)btn.textContent='Play';}
+    else{
+      if(watchIdx>=watchEvents.length)watchIdx=0;
+      if(btn)btn.textContent='Pause';
+      watchTimer=setInterval(()=>{
+        showWatchStep();
+        if(watchIdx>=watchEvents.length){clearInterval(watchTimer);watchTimer=null;const b=document.getElementById('btn-play');if(b)b.textContent='Play';}
+      },watchSpeed);
+    }
+  }
+
+  function stepWatch(dir){
+    if(watchTimer){clearInterval(watchTimer);watchTimer=null;const b=document.getElementById('btn-play');if(b)b.textContent='Play';}
+    if(dir<0)watchIdx=Math.max(0,watchIdx-2);
+    showWatchStep();
+  }
+
+  function setSpeed(v){
+    watchSpeed=+v;
+    if(watchTimer){
+      clearInterval(watchTimer);
+      watchTimer=setInterval(()=>{
+        showWatchStep();
+        if(watchIdx>=watchEvents.length){clearInterval(watchTimer);watchTimer=null;const b=document.getElementById('btn-play');if(b)b.textContent='Play';}
+      },watchSpeed);
+    }
+  }
+
+  // ── Save / Load ───────────────────────────────────────────
+  function saveEncounter(){
+    const mCfgs=readMonsters();
+    try{localStorage.setItem('playtester_encounter',JSON.stringify({monsters:mCfgs}));alert('Saved.');}
+    catch(e){alert('Storage unavailable.');}
+  }
+
+  function loadEncounter(){
+    try{
+      const raw=localStorage.getItem('playtester_encounter');
+      if(!raw){alert('No saved encounter.');return;}
+      const data=JSON.parse(raw);
+      monsterRows=[];mIdCtr=0;
+      data.monsters.forEach(m=>addMonster(m.boss,{name:m.name,ac:m.ac,hp:m.hp,atk:m.atk,dmg:m.dmgStr,atts:m.atts,type:m.type,saname:m.saName,sadmg:m.saDmg,sadc:m.saDC,sazone:m.saZone,saevery:m.saEvery}));
+      alert('Loaded.');
+    }catch(e){alert('Failed to load.');}
+  }
+
+  // ── Public API ────────────────────────────────────────────
+  return{
+    addMonster,removeMonster,
+    addPC,removePC,updatePC,
+    runSims,watchFight,
+    toggleWatch,stepWatch,setSpeed,
+    saveEncounter,loadEncounter,
+  };
+})();
+
+// ============================================================
+// INIT
+// ============================================================
+UI.addMonster(true,{name:'Capricorn-Garnet',ac:17,hp:50,atk:5,dmg:'1d8+2',atts:1,type:'melee',saname:'Horn Gore',sadmg:'2d6+2',sadc:0,sazone:'back',saevery:3});
+UI.addPC('Fighter');
+UI.addPC('Cleric');
+UI.addPC('Rogue');
+UI.addPC('Wizard');
 </script>
+</body>
+</html>
