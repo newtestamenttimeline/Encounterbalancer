@@ -201,7 +201,7 @@ const UI = (() => {
             <option value="ranged"${m.type === 'ranged' ? ' selected' : ''}>Ranged</option>
           </select></div>
         </div>
-        ${m.boss ? `<div style="margin-top:6px;font-size:10px;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Special ability - optional</div>
+        ${m.boss ? `<div style="margin-top:6px;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Special ability - optional</div>
         <div class="row3">
           <div class="field"><label>Name (blank = none)</label><input id="saname-${m.id}" value="${m.saname || ''}"/></div>
           <div class="field"><label>Damage</label><input id="sadmg-${m.id}" value="${m.sadmg || '2d6+2'}"/></div>
@@ -236,7 +236,7 @@ const UI = (() => {
 
   function renderPartyBuilder() {
     const el = document.getElementById('party-builder');
-    if (!pcRows.length) { el.innerHTML = '<div style="color:var(--color-text-secondary);font-size:12px;margin-bottom:8px;">No PCs.</div>'; return; }
+    if (!pcRows.length) { el.innerHTML = '<div style="color:#888;font-size:12px;margin-bottom:8px;">No PCs.</div>'; return; }
     el.innerHTML = pcRows.map(p => `
       <div class="pc-row">
         <div class="field"><label>Class</label>
@@ -280,7 +280,7 @@ const UI = (() => {
     const mCfgs = readMonsters();
     const lvl = +document.getElementById('plevel').value;
     const N   = +document.getElementById('nsims').value || 100;
-    if (!pcRows.length) { document.getElementById('output').innerHTML = '<div style="color:var(--color-text-secondary);">Add at least one PC.</div>'; return; }
+    if (!pcRows.length) { document.getElementById('output').innerHTML = '<div style="color:#888;">Add at least one PC.</div>'; return; }
     let wins = 0, totalRounds = 0, totalDeaths = 0;
     for (let i = 0; i < N; i++) {
       const party = buildParty(lvl);
@@ -317,8 +317,10 @@ const UI = (() => {
     const transcript = result.events.map(ev => eventToText(ev)).filter(t => t !== '').join('\n');
     const out = document.getElementById('output');
     out.innerHTML = `
-      <div id="battlefield" class="battlefield"></div>
-      <div class="ticker-box"><div class="ticker-line" id="ticker-text">...</div></div>
+      <div style="max-width:600px;margin:0 auto 16px;">
+        <div id="battlefield" class="battlefield"></div>
+        <div class="ticker-box"><div class="ticker-line" id="ticker-text">...</div></div>
+      </div>
       <div class="ticker-controls">
         <button onclick="UI.toggleWatch()" id="btn-play">Pause</button>
         <button onclick="UI.stepWatch(-1)">\u2190 Step</button>
@@ -334,7 +336,7 @@ const UI = (() => {
         <span class="progress" id="watch-progress">1 / ${watchEvents.length}</span>
       </div>
       <details style="margin-top:4px;">
-        <summary style="cursor:pointer;font-size:11px;color:var(--color-text-secondary);padding:4px 0;">Show full transcript</summary>
+        <summary style="cursor:pointer;font-size:11px;color:#666;padding:4px 0;">Show full transcript</summary>
         <div class="transcript-box"><pre>${transcript}</pre></div>
       </details>`;
     if (watchEvents.length) renderBattlefield(document.getElementById('battlefield'), watchEvents[0]);
